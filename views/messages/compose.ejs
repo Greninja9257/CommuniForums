@@ -1,0 +1,28 @@
+<%- include('../layout', { body: `
+<div class="page-header">
+  <h1>New Message</h1>
+</div>
+
+${error ? `<div class="alert alert-error">${error}</div>` : ''}
+
+<div class="section-card">
+  <form method="POST" action="/messages/send" class="settings-form">
+    <div class="form-group">
+      <label for="to">To</label>
+      <input type="text" id="to" name="to" value="${to}" required placeholder="Username" autocomplete="off">
+    </div>
+    <div class="form-group">
+      <label for="subject">Subject</label>
+      <input type="text" id="subject" name="subject" required placeholder="Message subject">
+    </div>
+    <div class="form-group">
+      <label for="content">Message</label>
+      <textarea id="content" name="content" rows="6" required placeholder="Write your message..."></textarea>
+    </div>
+    <div class="form-actions">
+      <button type="submit" class="btn btn-primary">Send Message</button>
+      <a href="/messages" class="btn">Cancel</a>
+    </div>
+  </form>
+</div>
+` }) %>

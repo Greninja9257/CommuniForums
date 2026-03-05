@@ -1,0 +1,37 @@
+<%- include('../layout', { body: `
+<nav class="breadcrumb">
+  <a href="/">Home</a> &rsaquo;
+  <a href="/forums">Forums</a> &rsaquo;
+  <a href="/forums/category/${category.id}">${category.name}</a> &rsaquo;
+  <span>New Thread</span>
+</nav>
+
+<div class="page-header">
+  <h1>Create New Thread</h1>
+  <p>Posting in: <strong>${category.icon} ${category.name}</strong></p>
+</div>
+
+${error ? `<div class="alert alert-error">${error}</div>` : ''}
+
+<div class="section-card">
+  <form method="POST" action="/forums/new-thread/${category.id}" class="thread-form">
+    <div class="form-group">
+      <label for="title">Thread Title</label>
+      <input type="text" id="title" name="title" required placeholder="What's your thread about?"
+        minlength="3" maxlength="200">
+    </div>
+    <div class="form-group">
+      <label for="content">Content</label>
+      <textarea id="content" name="content" rows="10" required
+        placeholder="Write your post here... (Markdown supported, @mention users)"></textarea>
+      <div class="form-help">
+        Supports Markdown: **bold**, *italic*, \`code\`, [links](url), lists, and more. Use @username to mention someone.
+      </div>
+    </div>
+    <div class="form-actions">
+      <button type="submit" class="btn btn-primary">Create Thread</button>
+      <a href="/forums/category/${category.id}" class="btn">Cancel</a>
+    </div>
+  </form>
+</div>
+` }) %>

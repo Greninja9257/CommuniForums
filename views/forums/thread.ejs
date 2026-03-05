@@ -1,0 +1,212 @@
+<%- include('../layout', { body: `
+<nav class="breadcrumb">
+  <a href="/">Home</a> &rsaquo;
+  <a href="/forums">Forums</a> &rsaquo;
+  <a href="/forums/category/${thread.category_id}">${thread.category_name}</a> &rsaquo;
+  <span>${truncate(thread.title, 50)}</span>
+</nav>
+
+<div class="thread-header">
+  <div class="thread-header-info">
+    <h1>${thread.title}</h1>
+    <div class="thread-header-meta">
+      ${thread.is_pinned ? '<span class="thread-badge badge-pinned">📌 Pinned</span>' : ''}
+      ${thread.is_locked ? '<span class="thread-badge badge-locked">🔒 Locked</span>' : ''}
+      ${thread.is_solved ? '<span class="thread-badge badge-solved">✅ Solved</span>' : ''}
+      <span>Started by <a href="/users/profile/${thread.author_id}">${thread.author_name}</a></span>
+      <span>&middot; ${formatDate(thread.created_at)}</span>
+      <span>&middot; ${thread.view_count} views</span>
+      <span>&middot; ${totalPosts - 1} replies</span>
+    </div>
+  </div>
+  ${currentUser && (currentUser.role === 'moderator' || currentUser.role === 'admin') ? `
+    <div class="thread-mod-actions">
+      <form method="POST" action="/forums/thread/${thread.id}/pin" style="display:inline">
+        <button class="btn btn-sm">${thread.is_pinned ? 'Unpin' : 'Pin'}</button>
+      </form>
+      <form method="POST" action="/forums/thread/${thread.id}/lock" style="display:inline">
+        <button class="btn btn-sm">${thread.is_locked ? 'Unlock' : 'Lock'}</button>
+      </form>
+      <form method="POST" action="/forums/thread/${thread.id}/solve" style="display:inline">
+        <button class="btn btn-sm">${thread.is_solved ? 'Unsolve' : 'Mark Solved'}</button>
+      </form>
+    </div>
+  ` : (currentUser && currentUser.id === thread.author_id ? `
+    <div class="thread-mod-actions">
+      <form method="POST" action="/forums/thread/${thread.id}/solve" style="display:inline">
+        <button class="btn btn-sm">${thread.is_solved ? 'Unsolve' : 'Mark Solved'}</button>
+      </form>
+    </div>
+  ` : '')}
+</div>
+
+<div class="posts-container">
+  ${posts.map((post, index) => `
+    <div class="post-card" id="post-${post.id}">
+      <div class="post-sidebar">
+        <a href="/users/profile/${post.author_id}">
+          <img src="${post.author_avatar}" alt="" class="post-avatar" onerror="this.src='/css/default-avatar.svg'">
+        </a>
+        <a href="/users/profile/${post.author_id}" class="post-author-name">${post.author_name}</a>
+        <span class="post-author-rank" style="color: ${post.rank.color}">${post.rank.title}</span>
+        ${post.author_role !== 'user' ? `<span class="role-badge role-${post.author_role}">${post.author_role}</span>` : ''}
+        <div class="post-author-stats">
+          <span>⭐ ${post.author_thanks} thanks</span>
+          <span>📝 ${post.author_post_count} posts</span>
+        </div>
+        ${post.badges && post.badges.length > 0 ? `
+          <div class="post-author-badges">
+            ${post.badges.slice(0, 4).map(b => `<span class="mini-badge" title="${b.name}: ${b.description}">${b.icon}</span>`).join('')}
+            ${post.badges.length > 4 ? `<span class="mini-badge">+${post.badges.length - 4}</span>` : ''}
+          </div>
+        ` : ''}
+      </div>
+      <div class="post-main">
+        <div class="post-header">
+          <span class="post-date">${formatDate(post.created_at)}</span>
+          ${post.is_edited ? '<span class="post-edited">(edited)</span>' : ''}
+          <span class="post-number">#${(page - 1) * 15 + index + 1}</span>
+        </div>
+        <div class="post-content">${post.content_html}</div>
+        <div class="post-actions">
+          ${currentUser ? `
+            <div class="post-action-group">
+              ${post.author_id !== currentUser.id ? `
+                <button class="btn-action btn-thank ${post.userThanked ? 'active' : ''}"
+                  onclick="thankPost(event, ${post.id})" title="Thank this post">
+                  👍 <span class="thank-count">${post.thanks_count}</span>
+                </button>
+                <button class="btn-action btn-thumbsdown ${post.userThumbedDown ? 'active' : ''}"
+                  onclick="thumbsDownPost(${post.id})" title="Thumbs down (requires reason)">
+                  👎 <span class="td-count">${post.thumbs_down_count}</span>
+                </button>
+              ` : `
+                <span class="btn-action disabled">👍 ${post.thanks_count}</span>
+              `}
+              <button class="btn-action btn-quote"
+                data-author="${Buffer.from(post.author_name || '').toString('base64')}"
+                data-content="${Buffer.from(post.content || '').toString('base64')}"
+                onclick="quotePost(this)" title="Quote">
+                💬 Quote
+              </button>
+              ${post.author_id !== currentUser.id ? `
+                <button class="btn-action" onclick="reportPost(${post.id})" title="Report">🚩 Report</button>
+              ` : ''}
+            </div>
+            <div class="post-action-group">
+              ${post.author_id === currentUser.id || ['moderator', 'admin'].includes(currentUser.role) ? `
+                <button class="btn-action" onclick="editPost(${post.id})">✏️ Edit</button>
+                <form method="POST" action="/forums/post/${post.id}/delete" style="display:inline"
+                  onsubmit="return confirm('Are you sure you want to delete this post?')">
+                  <button class="btn-action btn-danger">🗑️ Delete</button>
+                </form>
+              ` : ''}
+            </div>
+          ` : `
+            <span class="btn-action disabled">👍 ${post.thanks_count}</span>
+            <a href="/auth/login" class="btn-action">Login to interact</a>
+          `}
+        </div>
+      </div>
+    </div>
+  `).join('')}
+</div>
+
+${totalPages > 1 ? `
+  <div class="pagination">
+    ${page > 1 ? `<a href="/forums/thread/${thread.id}?page=${page - 1}" class="page-link">&laquo; Prev</a>` : ''}
+    ${Array.from({length: Math.min(totalPages, 10)}, (_, i) => {
+      const p = i + 1;
+      return `<a href="/forums/thread/${thread.id}?page=${p}" class="page-link ${p === page ? 'active' : ''}">${p}</a>`;
+    }).join('')}
+    ${page < totalPages ? `<a href="/forums/thread/${thread.id}?page=${page + 1}" class="page-link">Next &raquo;</a>` : ''}
+  </div>
+` : ''}
+
+<div id="latest"></div>
+
+${currentUser && !thread.is_locked ? `
+  <div class="reply-form-container">
+    <h3>Post a Reply</h3>
+    ${typeof isBanned !== 'undefined' && isBanned ? `
+      <div class="alert alert-error">Your account is suspended. You cannot post.</div>
+    ` : `
+      <form method="POST" action="/forums/thread/${thread.id}/reply" class="reply-form">
+        <div class="form-group">
+          <textarea name="content" id="reply-content" rows="6" required
+            placeholder="Write your reply... (Markdown supported, @mention users)"></textarea>
+          <div class="form-help">Supports Markdown. Use @username to mention someone.</div>
+        </div>
+        <button type="submit" class="btn btn-primary">Post Reply</button>
+      </form>
+    `}
+  </div>
+` : (!currentUser ? `
+  <div class="reply-form-container">
+    <p class="text-center"><a href="/auth/login?redirect=/forums/thread/${thread.id}">Log in</a> or <a href="/auth/register">register</a> to reply.</p>
+  </div>
+` : (thread.is_locked ? `
+  <div class="reply-form-container">
+    <p class="text-center">🔒 This thread is locked. No new replies.</p>
+  </div>
+` : ''))}
+
+<!-- Report Modal -->
+<div class="modal" id="report-modal">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h3>Report Post</h3>
+      <button class="modal-close" onclick="closeModal('report-modal')">&times;</button>
+    </div>
+    <form id="report-form">
+      <div class="form-group">
+        <label>Reason for reporting:</label>
+        <textarea name="reason" rows="3" required placeholder="Explain why this post should be reviewed..."></textarea>
+      </div>
+      <button type="submit" class="btn btn-primary">Submit Report</button>
+    </form>
+  </div>
+</div>
+
+<!-- Thumbs Down Modal -->
+<div class="modal" id="thumbsdown-modal">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h3>👎 Thumbs Down</h3>
+      <button class="modal-close" onclick="closeModal('thumbsdown-modal')">&times;</button>
+    </div>
+    <p class="modal-note">Please provide a reason. Excessive thumbs down on a user may result in temporary suspension for them.</p>
+    <form id="thumbsdown-form">
+      <div class="form-group">
+        <label>Reason:</label>
+        <select name="reason-select" onchange="document.getElementById('td-reason').value = this.value">
+          <option value="">Select a reason...</option>
+          <option value="Rude or disrespectful">Rude or disrespectful</option>
+          <option value="Incorrect information">Incorrect information</option>
+          <option value="Off-topic">Off-topic</option>
+          <option value="Spam">Spam</option>
+          <option value="Other">Other (specify below)</option>
+        </select>
+        <textarea name="reason" id="td-reason" rows="2" required placeholder="Specify reason..." class="mt-2"></textarea>
+      </div>
+      <button type="submit" class="btn btn-danger">Submit</button>
+    </form>
+  </div>
+</div>
+
+<!-- Edit Post Modal -->
+<div class="modal" id="edit-modal">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h3>Edit Post</h3>
+      <button class="modal-close" onclick="closeModal('edit-modal')">&times;</button>
+    </div>
+    <form id="edit-form" method="POST">
+      <div class="form-group">
+        <textarea name="content" id="edit-content" rows="6" required></textarea>
+      </div>
+      <button type="submit" class="btn btn-primary">Save Changes</button>
+    </form>
+  </div>
+</div>
+` }) %>

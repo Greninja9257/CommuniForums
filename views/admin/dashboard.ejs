@@ -1,0 +1,102 @@
+<%- include('../layout', { body: `
+<div class="page-header">
+  <h1>⚙️ Admin Dashboard</h1>
+</div>
+
+<div class="admin-nav">
+  <a href="/admin" class="btn btn-sm btn-primary">Dashboard</a>
+  <a href="/admin/users" class="btn btn-sm">Users</a>
+  <a href="/admin/categories" class="btn btn-sm">Categories</a>
+</div>
+
+<div class="admin-stats-grid">
+  <div class="admin-stat-card">
+    <span class="admin-stat-icon">👥</span>
+    <span class="admin-stat-number">${stats.totalUsers}</span>
+    <span class="admin-stat-label">Total Users</span>
+  </div>
+  <div class="admin-stat-card">
+    <span class="admin-stat-icon">💬</span>
+    <span class="admin-stat-number">${stats.totalThreads}</span>
+    <span class="admin-stat-label">Total Threads</span>
+  </div>
+  <div class="admin-stat-card">
+    <span class="admin-stat-icon">📝</span>
+    <span class="admin-stat-number">${stats.totalPosts}</span>
+    <span class="admin-stat-label">Total Posts</span>
+  </div>
+  <div class="admin-stat-card">
+    <span class="admin-stat-icon">⭐</span>
+    <span class="admin-stat-number">${stats.totalThanks}</span>
+    <span class="admin-stat-label">Total Thanks</span>
+  </div>
+  <div class="admin-stat-card">
+    <span class="admin-stat-icon">👎</span>
+    <span class="admin-stat-number">${stats.totalThumbsDown}</span>
+    <span class="admin-stat-label">Total Thumbs Down</span>
+  </div>
+  <div class="admin-stat-card">
+    <span class="admin-stat-icon">🚩</span>
+    <span class="admin-stat-number">${stats.pendingReports}</span>
+    <span class="admin-stat-label">Pending Reports</span>
+  </div>
+  <div class="admin-stat-card">
+    <span class="admin-stat-icon">🔨</span>
+    <span class="admin-stat-number">${stats.bannedUsers}</span>
+    <span class="admin-stat-label">Banned Users</span>
+  </div>
+  <div class="admin-stat-card">
+    <span class="admin-stat-icon">📈</span>
+    <span class="admin-stat-number">${stats.newPostsToday}</span>
+    <span class="admin-stat-label">Posts Today</span>
+  </div>
+</div>
+
+<div class="admin-grid">
+  <div class="section-card">
+    <h2>🚩 Pending Reports (${stats.pendingReports})</h2>
+    ${recentReports.length === 0 ? '<p class="empty-state">No pending reports.</p>' : `
+      <div class="report-list">
+        ${recentReports.map(r => `
+          <div class="report-item">
+            <div class="report-info">
+              <p><strong>${r.reporter_name}</strong> reported <strong>${r.post_author_name}</strong>'s post</p>
+              <p class="report-reason">Reason: ${r.reason}</p>
+              <p class="report-content">Post content: "${truncate(r.post_content, 150)}"</p>
+              <span class="report-time">${formatDate(r.created_at)}</span>
+            </div>
+            <div class="report-actions">
+              <form method="POST" action="/admin/reports/${r.id}/resolve" style="display:inline">
+                <input type="hidden" name="action" value="resolved">
+                <input type="hidden" name="note" value="Reviewed and resolved">
+                <button class="btn btn-sm btn-primary">Resolve</button>
+              </form>
+              <form method="POST" action="/admin/reports/${r.id}/resolve" style="display:inline">
+                <input type="hidden" name="action" value="dismissed">
+                <input type="hidden" name="note" value="Dismissed">
+                <button class="btn btn-sm">Dismiss</button>
+              </form>
+            </div>
+          </div>
+        `).join('')}
+      </div>
+    `}
+  </div>
+
+  <div class="section-card">
+    <h2>📋 Recent Mod Actions</h2>
+    ${recentModActions.length === 0 ? '<p class="empty-state">No recent actions.</p>' : `
+      <div class="mod-action-list">
+        ${recentModActions.map(a => `
+          <div class="mod-action-item">
+            <span class="mod-action-type">${a.action_type}</span>
+            <span>${a.mod_name} ${a.target_name ? `→ ${a.target_name}` : ''}</span>
+            ${a.reason ? `<span class="mod-action-reason">${a.reason}</span>` : ''}
+            <span class="mod-action-time">${formatDate(a.created_at)}</span>
+          </div>
+        `).join('')}
+      </div>
+    `}
+  </div>
+</div>
+` }) %>

@@ -1,0 +1,106 @@
+<%- include('../layout', { body: `
+<div class="page-header">
+  <h1>⚙️ Manage Categories</h1>
+</div>
+
+<div class="admin-nav">
+  <a href="/admin" class="btn btn-sm">Dashboard</a>
+  <a href="/admin/users" class="btn btn-sm">Users</a>
+  <a href="/admin/categories" class="btn btn-sm btn-primary">Categories</a>
+</div>
+
+<div class="admin-grid">
+  <div class="section-card">
+    <h2>Create Category</h2>
+    <form method="POST" action="/admin/categories/create" class="settings-form">
+      <div class="form-group">
+        <label>Name</label>
+        <input type="text" name="name" required placeholder="Category name">
+      </div>
+      <div class="form-group">
+        <label>Description</label>
+        <input type="text" name="description" placeholder="Brief description">
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Icon (emoji)</label>
+          <input type="text" name="icon" placeholder="💬" maxlength="4">
+        </div>
+        <div class="form-group">
+          <label>Display Order</label>
+          <input type="number" name="display_order" value="0">
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Parent Category (optional)</label>
+        <select name="parent_id">
+          <option value="">None (top-level)</option>
+          ${categories.filter(c => !c.parent_id).map(c => `
+            <option value="${c.id}">${c.name}</option>
+          `).join('')}
+        </select>
+      </div>
+      <button type="submit" class="btn btn-primary">Create Category</button>
+    </form>
+  </div>
+
+  <div class="section-card">
+    <h2>Existing Categories</h2>
+    ${categories.length === 0 ? '<p class="empty-state">No categories yet.</p>' : `
+      <div class="category-admin-list">
+        ${categories.map(c => `
+          <div class="category-admin-item">
+            <div class="category-admin-info">
+              <span class="category-icon">${c.icon}</span>
+              <div>
+                <strong>${c.name}</strong>
+                ${c.parent_id ? '<span class="subcategory-label">(subcategory)</span>' : ''}
+                <p>${c.description || ''}</p>
+                <small>Order: ${c.display_order} | Threads: ${c.thread_count} | Posts: ${c.post_count}</small>
+              </div>
+            </div>
+            <div class="category-admin-actions">
+              <button class="btn btn-sm" onclick="editCategory(${c.id}, '${c.name}', '${c.description || ''}', '${c.icon}', ${c.display_order})">Edit</button>
+              <form method="POST" action="/admin/categories/${c.id}/delete" style="display:inline"
+                onsubmit="return confirm('Delete this category?')">
+                <button class="btn btn-sm btn-danger">Delete</button>
+              </form>
+            </div>
+          </div>
+        `).join('')}
+      </div>
+    `}
+  </div>
+</div>
+
+<!-- Edit Category Modal -->
+<div class="modal" id="edit-cat-modal">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h3>Edit Category</h3>
+      <button class="modal-close" onclick="closeModal('edit-cat-modal')">&times;</button>
+    </div>
+    <form id="edit-cat-form" method="POST">
+      <div class="form-group">
+        <label>Name</label>
+        <input type="text" name="name" id="edit-cat-name" required>
+      </div>
+      <div class="form-group">
+        <label>Description</label>
+        <input type="text" name="description" id="edit-cat-desc">
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Icon</label>
+          <input type="text" name="icon" id="edit-cat-icon" maxlength="4">
+        </div>
+        <div class="form-group">
+          <label>Display Order</label>
+          <input type="number" name="display_order" id="edit-cat-order">
+        </div>
+      </div>
+      <button type="submit" class="btn btn-primary">Save Changes</button>
+    </form>
+  </div>
+</div>
+` }) %>

@@ -1,0 +1,48 @@
+<%- include('layout', { body: `
+<div class="page-header">
+  <h1>🔔 Notifications</h1>
+  <form method="POST" action="/notifications/read-all">
+    <button class="btn btn-sm">Mark All Read</button>
+  </form>
+</div>
+
+${notifications.length === 0 ? `
+  <div class="empty-state-large">
+    <h2>No notifications</h2>
+    <p>You're all caught up!</p>
+  </div>
+` : `
+  <div class="notification-list">
+    ${notifications.map(n => `
+      <div class="notification-item ${n.is_read ? '' : 'unread'}" data-id="${n.id}">
+        <div class="notification-icon">
+          ${n.type === 'thanks' ? '⭐' :
+            n.type === 'reply' ? '💬' :
+            n.type === 'mention' ? '📢' :
+            n.type === 'badge' ? '🏆' :
+            n.type === 'pm' ? '✉️' :
+            n.type === 'moderation' ? '⚠️' : '🔔'}
+        </div>
+        <div class="notification-content">
+          <p>${n.message}</p>
+          <span class="notification-time">${formatDate(n.created_at)}</span>
+        </div>
+        ${!n.is_read ? `
+          <button class="btn-action btn-sm" onclick="markNotifRead(${n.id}, this)">✓</button>
+        ` : ''}
+      </div>
+    `).join('')}
+  </div>
+
+  ${totalPages > 1 ? `
+    <div class="pagination">
+      ${page > 1 ? `<a href="/notifications?page=${page - 1}" class="page-link">&laquo; Prev</a>` : ''}
+      ${Array.from({length: Math.min(totalPages, 10)}, (_, i) => {
+        const p = i + 1;
+        return `<a href="/notifications?page=${p}" class="page-link ${p === page ? 'active' : ''}">${p}</a>`;
+      }).join('')}
+      ${page < totalPages ? `<a href="/notifications?page=${page + 1}" class="page-link">Next &raquo;</a>` : ''}
+    </div>
+  ` : ''}
+`}
+` }) %>

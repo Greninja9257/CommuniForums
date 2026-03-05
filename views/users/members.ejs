@@ -1,0 +1,42 @@
+<%- include('../layout', { body: `
+<div class="page-header">
+  <h1>Members</h1>
+  <p>${totalUsers} registered members</p>
+</div>
+
+<div class="member-sort">
+  <span>Sort by:</span>
+  <a href="/users/members?sort=thanks" class="btn btn-sm ${sort === 'thanks' ? 'btn-primary' : ''}">Most Thanks</a>
+  <a href="/users/members?sort=posts" class="btn btn-sm ${sort === 'posts' ? 'btn-primary' : ''}">Most Posts</a>
+  <a href="/users/members?sort=newest" class="btn btn-sm ${sort === 'newest' ? 'btn-primary' : ''}">Newest</a>
+  <a href="/users/members?sort=active" class="btn btn-sm ${sort === 'active' ? 'btn-primary' : ''}">Most Active</a>
+</div>
+
+<div class="member-grid">
+  ${members.map(m => `
+    <a href="/users/profile/${m.id}" class="member-card">
+      <img src="${m.avatar}" alt="" class="member-avatar" onerror="this.src='/css/default-avatar.svg'">
+      <div class="member-info">
+        <strong>${m.username}</strong>
+        ${m.role !== 'user' ? `<span class="role-badge role-${m.role}">${m.role}</span>` : ''}
+        <span class="member-rank" style="color: ${m.rank.color}">${m.rank.title}</span>
+        <div class="member-stats">
+          <span>⭐ ${m.thanks_received}</span>
+          <span>📝 ${m.post_count}</span>
+        </div>
+      </div>
+    </a>
+  `).join('')}
+</div>
+
+${totalPages > 1 ? `
+  <div class="pagination">
+    ${page > 1 ? `<a href="/users/members?sort=${sort}&page=${page - 1}" class="page-link">&laquo; Prev</a>` : ''}
+    ${Array.from({length: Math.min(totalPages, 10)}, (_, i) => {
+      const p = i + 1;
+      return `<a href="/users/members?sort=${sort}&page=${p}" class="page-link ${p === page ? 'active' : ''}">${p}</a>`;
+    }).join('')}
+    ${page < totalPages ? `<a href="/users/members?sort=${sort}&page=${page + 1}" class="page-link">Next &raquo;</a>` : ''}
+  </div>
+` : ''}
+` }) %>

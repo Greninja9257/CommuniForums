@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title><%= typeof title !== 'undefined' ? title + ' - ' : '' %>CommuniForums</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <%- include('partials/header') %>
+  <main class="container">
+    <% if (typeof flash !== 'undefined' && flash.message) { %>
+      <div class="alert alert-<%= flash.type || 'info' %>">
+        <%= flash.message %>
+        <button class="alert-close" onclick="this.parentElement.remove()">&times;</button>
+      </div>
+    <% } %>
+    <%- body %>
+  </main>
+  <%- include('partials/footer') %>
+  <script src="/js/app.js"></script>
+</body>
+</html>

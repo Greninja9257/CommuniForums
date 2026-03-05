@@ -1,0 +1,189 @@
+const express = require('express');
+const router = express.Router();
+const { db, getRank, getEffectiveRank } = require('../database');
+const { requireAuth, requireMod } = require('../middleware/auth');
+
+// All admin routes require mod+
+router.use(requireAuth, requireMod);
+
+// GET /admin - Dashboard
+router.get('/', (req, res) => {
+  const stats = {
+    totalUsers: db.prepare('SELECT COUNT(*) as c FROM users').get().c,
+    totalThreads: db.prepare('SELECT COUNT(*) as c FROM threads').get().c,
+    totalPosts: db.prepare('SELECT COUNT(*) as c FROM posts').get().c,
+    totalThanks: db.prepare('SELECT COUNT(*) as c FROM thanks').get().c,
+    totalThumbsDown: db.prepare('SELECT COUNT(*) as c FROM thumbs_down').get().c,
+    pendingReports: db.prepare("SELECT COUNT(*) as c FROM reports WHERE status = 'pending'").get().c,
+    bannedUsers: db.prepare("SELECT COUNT(*) as c FROM users WHERE banned_until > datetime('now')").get().c,
+    newUsersToday: db.prepare("SELECT COUNT(*) as c FROM users WHERE created_at > datetime('now', '-1 day')").get().c,
+    newPostsToday: db.prepare("SELECT COUNT(*) as c FROM posts WHERE created_at > datetime('now', '-1 day')").get().c,
+  };
+
+  const recentReports = db.prepare(`
+    SELECT r.*, u.username as reporter_name, p.content as post_content,
+      pu.username as post_author_name
+    FROM reports r
+    JOIN users u ON r.reporter_id = u.id
+    JOIN posts p ON r.post_id = p.id
+    JOIN users pu ON p.author_id = pu.id
+    WHERE r.status = 'pending'
+    ORDER BY r.created_at DESC LIMIT 10
+  `).all();
+
+  const recentModActions = db.prepare(`
+    SELECT ma.*, m.username as mod_name, tu.username as target_name
+    FROM mod_actions ma
+    JOIN users m ON ma.mod_id = m.id
+    LEFT JOIN users tu ON ma.target_user_id = tu.id
+    ORDER BY ma.created_at DESC LIMIT 10
+  `).all();
+
+  res.render('admin/dashboard', {
+    title: 'Admin Dashboard',
+    stats,
+    recentReports,
+    recentModActions,
+    getRank
+  });
+});
+
+// GET /admin/users
+router.get('/users', (req, res) => {
+  const page = Math.max(1, parseInt(req.query.page) || 1);
+  const perPage = 25;
+  const offset = (page - 1) * perPage;
+  const search = req.query.search || '';
+
+  let query = 'SELECT * FROM users';
+  let countQuery = 'SELECT COUNT(*) as c FROM users';
+  const params = [];
+
+  if (search) {
+    query += ' WHERE username LIKE ? OR email LIKE ?';
+    countQuery += ' WHERE username LIKE ? OR email LIKE ?';
+    params.push(`%${search}%`, `%${search}%`);
+  }
+
+  const total = db.prepare(countQuery).get(...params).c;
+  const totalPages = Math.ceil(total / perPage);
+
+  query += ' ORDER BY created_at DESC LIMIT ? OFFSET ?';
+  const users = db.prepare(query).all(...params, perPage, offset);
+
+  res.render('admin/users', {
+    title: 'Manage Users',
+    users: users.map(u => ({ ...u, rank: getEffectiveRank(u) })),
+    page,
+    totalPages,
+    search,
+    getRank
+  });
+});
+
+// POST /admin/users/:id/ban
+router.post('/users/:id/ban', (req, res) => {
+  const { days, reason } = req.body;
+  const banDays = parseInt(days) || 1;
+  const banUntil = new Date(Date.now() + banDays * 24 * 60 * 60 * 1000).toISOString();
+
+  db.prepare('UPDATE users SET banned_until = ?, ban_reason = ?, ban_count = ban_count + 1 WHERE id = ?')
+    .run(banUntil, reason || 'Banned by moderator', req.params.id);
+
+  db.prepare('INSERT INTO mod_actions (mod_id, target_user_id, action_type, reason, duration) VALUES (?, ?, ?, ?, ?)')
+    .run(res.locals.currentUser.id, req.params.id, 'ban', reason || 'Manual ban', banDays);
+
+  db.prepare('INSERT INTO notifications (user_id, type, message) VALUES (?, ?, ?)')
+    .run(req.params.id, 'moderation', `You have been banned for ${banDays} day(s). Reason: ${reason || 'Moderator action'}`);
+
+  req.flash('success', 'User banned.');
+  res.redirect('/admin/users');
+});
+
+// POST /admin/users/:id/unban
+router.post('/users/:id/unban', (req, res) => {
+  db.prepare('UPDATE users SET banned_until = NULL, ban_reason = NULL WHERE id = ?').run(req.params.id);
+
+  db.prepare('INSERT INTO mod_actions (mod_id, target_user_id, action_type, reason) VALUES (?, ?, ?, ?)')
+    .run(res.locals.currentUser.id, req.params.id, 'unban', 'Manual unban');
+
+  db.prepare('INSERT INTO notifications (user_id, type, message) VALUES (?, ?, ?)')
+    .run(req.params.id, 'moderation', 'Your ban has been lifted. Welcome back!');
+
+  req.flash('success', 'User unbanned.');
+  res.redirect('/admin/users');
+});
+
+// POST /admin/users/:id/role
+router.post('/users/:id/role', (req, res) => {
+  if (res.locals.currentUser.role !== 'admin') {
+    return res.status(403).render('error', { title: 'Forbidden', message: 'Admin only.' });
+  }
+  const { role } = req.body;
+  if (!['user', 'moderator', 'admin'].includes(role)) {
+    return res.status(400).render('error', { title: 'Bad Request', message: 'Invalid role.' });
+  }
+
+  db.prepare('UPDATE users SET role = ? WHERE id = ?').run(role, req.params.id);
+  db.prepare('INSERT INTO mod_actions (mod_id, target_user_id, action_type, reason) VALUES (?, ?, ?, ?)')
+    .run(res.locals.currentUser.id, req.params.id, 'role_change', `Changed role to ${role}`);
+
+  req.flash('success', 'User role updated.');
+  res.redirect('/admin/users');
+});
+
+// GET /admin/categories
+router.get('/categories', (req, res) => {
+  const categories = db.prepare('SELECT * FROM categories ORDER BY display_order, id').all();
+  res.render('admin/categories', { title: 'Manage Categories', categories });
+});
+
+// POST /admin/categories/create
+router.post('/categories/create', (req, res) => {
+  const { name, description, icon, display_order, parent_id } = req.body;
+  db.prepare(
+    'INSERT INTO categories (name, description, icon, display_order, parent_id) VALUES (?, ?, ?, ?, ?)'
+  ).run(name, description || '', icon || '💬', parseInt(display_order) || 0, parent_id || null);
+
+  req.flash('success', 'Category created.');
+  res.redirect('/admin/categories');
+});
+
+// POST /admin/categories/:id/edit
+router.post('/categories/:id/edit', (req, res) => {
+  const { name, description, icon, display_order } = req.body;
+  db.prepare(
+    'UPDATE categories SET name = ?, description = ?, icon = ?, display_order = ? WHERE id = ?'
+  ).run(name, description || '', icon || '💬', parseInt(display_order) || 0, req.params.id);
+
+  req.flash('success', 'Category updated.');
+  res.redirect('/admin/categories');
+});
+
+// POST /admin/categories/:id/delete
+router.post('/categories/:id/delete', (req, res) => {
+  const threadCount = db.prepare('SELECT COUNT(*) as c FROM threads WHERE category_id = ?').get(req.params.id).c;
+  if (threadCount > 0) {
+    req.flash('error', 'Cannot delete category with threads. Move or delete threads first.');
+    return res.redirect('/admin/categories');
+  }
+  db.prepare('DELETE FROM categories WHERE id = ?').run(req.params.id);
+  req.flash('success', 'Category deleted.');
+  res.redirect('/admin/categories');
+});
+
+// POST /admin/reports/:id/resolve
+router.post('/reports/:id/resolve', (req, res) => {
+  const { action, note } = req.body;
+  db.prepare(
+    'UPDATE reports SET status = ?, resolved_by = ?, resolution_note = ?, resolved_at = CURRENT_TIMESTAMP WHERE id = ?'
+  ).run(action || 'resolved', res.locals.currentUser.id, note || '', req.params.id);
+
+  db.prepare('INSERT INTO mod_actions (mod_id, action_type, reason) VALUES (?, ?, ?)')
+    .run(res.locals.currentUser.id, 'resolve_report', `Report #${req.params.id}: ${action} - ${note || 'No note'}`);
+
+  req.flash('success', 'Report resolved.');
+  res.redirect('/admin');
+});
+
+module.exports = router;

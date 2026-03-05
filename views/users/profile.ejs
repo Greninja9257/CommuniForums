@@ -1,0 +1,156 @@
+<%- include('../layout', { body: `
+<div class="profile-header">
+  <div class="profile-banner"></div>
+  <div class="profile-info">
+    <img src="${profileUser.avatar}" alt="" class="profile-avatar" onerror="this.src='/css/default-avatar.svg'">
+    <div class="profile-details">
+      <h1>
+        ${profileUser.username}
+        ${profileUser.role !== 'user' ? `<span class="role-badge role-${profileUser.role}">${profileUser.role}</span>` : ''}
+      </h1>
+      <span class="profile-rank" style="color: ${rank.color}">${rank.title}</span>
+      ${profileUser.bio ? `<p class="profile-bio">${profileUser.bio}</p>` : ''}
+      <div class="profile-meta">
+        <span>Joined ${formatDate(profileUser.created_at)}</span>
+        <span>&middot; Last active ${formatDate(profileUser.last_active)}</span>
+      </div>
+    </div>
+    ${currentUser && currentUser.id !== profileUser.id ? `
+      <a href="/messages/new?to=${profileUser.username}" class="btn btn-sm">✉️ Message</a>
+    ` : ''}
+  </div>
+</div>
+
+<div class="profile-grid">
+  <div class="profile-main">
+    <div class="profile-stats-bar">
+      <div class="profile-stat">
+        <span class="stat-number">${profileUser.thanks_received}</span>
+        <span class="stat-label">Thanks Received</span>
+      </div>
+      <div class="profile-stat">
+        <span class="stat-number">${profileUser.thanks_given}</span>
+        <span class="stat-label">Thanks Given</span>
+      </div>
+      <div class="profile-stat">
+        <span class="stat-number">${profileUser.post_count}</span>
+        <span class="stat-label">Posts</span>
+      </div>
+      <div class="profile-stat">
+        <span class="stat-number">${profileUser.thread_count}</span>
+        <span class="stat-label">Threads</span>
+      </div>
+    </div>
+
+    <div class="section-card">
+      <h2>Recent Posts</h2>
+      ${recentPosts.length === 0 ? '<p class="empty-state">No posts yet.</p>' : `
+        <div class="activity-list">
+          ${recentPosts.map(p => `
+            <div class="activity-item">
+              <a href="/forums/thread/${p.thread_id}#post-${p.id}" class="activity-link">
+                <strong>${p.thread_title}</strong>
+                <p>${truncate(p.content, 150)}</p>
+                <span class="activity-time">${formatDate(p.created_at)}</span>
+              </a>
+            </div>
+          `).join('')}
+        </div>
+      `}
+    </div>
+
+    <div class="section-card">
+      <h2>Recent Threads</h2>
+      ${recentThreads.length === 0 ? '<p class="empty-state">No threads yet.</p>' : `
+        <div class="activity-list">
+          ${recentThreads.map(t => `
+            <div class="activity-item">
+              <a href="/forums/thread/${t.id}" class="activity-link">
+                <strong>${t.title}</strong>
+                <span class="activity-meta">in ${t.category_name} &middot; ${formatDate(t.created_at)}</span>
+              </a>
+            </div>
+          `).join('')}
+        </div>
+      `}
+    </div>
+  </div>
+
+  <div class="profile-sidebar">
+    <div class="section-card">
+      <h3>🏆 Badges (${badges.length})</h3>
+      ${badges.length === 0 ? '<p class="empty-state">No badges yet.</p>' : `
+        <div class="badge-grid">
+          ${badges.map(b => `
+            <div class="badge-item" title="${b.description}">
+              <span class="badge-icon">${b.icon}</span>
+              <span class="badge-name">${b.name}</span>
+            </div>
+          `).join('')}
+        </div>
+      `}
+    </div>
+
+    ${profileUser.rank_override_title ? `
+      <div class="section-card">
+        <h3>🎖️ Special Rank</h3>
+        <p><strong>${profileUser.rank_override_title}</strong></p>
+        ${profileUser.rank_override_reason ? `<p class="text-muted">Reason: ${profileUser.rank_override_reason}</p>` : ''}
+        ${rankOverrideBy ? `<p class="text-muted">Granted by <a href="/users/profile/${rankOverrideBy.id}">${rankOverrideBy.username}</a></p>` : ''}
+      </div>
+    ` : ''}
+
+    ${canManageRanks ? `
+      <div class="section-card">
+        <h3>🔐 Rank Management</h3>
+        <form method="POST" action="/users/profile/${profileUser.id}/rank" class="settings-form">
+          <div class="form-group">
+            <label>Assign Rank</label>
+            <select name="rank_title" required>
+              ${rankOptions.map(r => `
+                <option value="${r}" ${profileUser.rank_override_title === r ? 'selected' : ''}>${r}</option>
+              `).join('')}
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Reason (optional)</label>
+            <input type="text" name="reason" placeholder="Why this rank is granted">
+          </div>
+          <button type="submit" class="btn btn-primary btn-block">Save Rank</button>
+        </form>
+        ${profileUser.rank_override_title ? `
+          <form method="POST" action="/users/profile/${profileUser.id}/rank" class="settings-form mt-2">
+            <input type="hidden" name="action" value="clear">
+            <button type="submit" class="btn btn-danger btn-block">Revoke Override</button>
+          </form>
+        ` : ''}
+      </div>
+    ` : ''}
+
+    <div class="section-card">
+      <h3>📊 30-Day Activity</h3>
+      <div class="mini-stats">
+        <div class="mini-stat">
+          <span class="mini-stat-value">${postsRecent}</span>
+          <span>Posts</span>
+        </div>
+        <div class="mini-stat">
+          <span class="mini-stat-value">${thanksGivenRecent}</span>
+          <span>Thanks Given</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="section-card">
+      <h3>Rank Progress</h3>
+      <div class="rank-progress">
+        <div class="rank-current" style="color: ${rank.color}">${rank.title}</div>
+        <div class="rank-bar">
+          <div class="rank-bar-fill" style="width: ${Math.min(100, (profileUser.thanks_received / 1000) * 100)}%"></div>
+        </div>
+        <span class="rank-info">${profileUser.thanks_received} / 1000 thanks to Forum God</span>
+      </div>
+    </div>
+  </div>
+</div>
+` }) %>

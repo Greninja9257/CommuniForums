@@ -1,0 +1,32 @@
+<%- include('../layout', { body: `
+<div class="auth-container">
+  <div class="auth-card">
+    <h1>Join CommuniForums</h1>
+    <p class="auth-subtitle">Create your account and become part of our community</p>
+
+    ${error ? `<div class="alert alert-error">${error}</div>` : ''}
+
+    <form method="POST" action="/auth/register" class="auth-form">
+      <div class="form-group">
+        <label for="username">Username</label>
+        <input type="text" id="username" name="username" required autofocus
+          placeholder="3-20 characters, letters/numbers/underscores" pattern="[a-zA-Z0-9_]{3,20}">
+      </div>
+      <div class="form-group">
+        <label for="email">Email</label>
+        <input type="email" id="email" name="email" required placeholder="your@email.com">
+      </div>
+      <div class="form-group">
+        <label for="password">Password</label>
+        <input type="password" id="password" name="password" required placeholder="Minimum 6 characters" minlength="6">
+      </div>
+      <div class="form-group">
+        <label for="confirm_password">Confirm Password</label>
+        <input type="password" id="confirm_password" name="confirm_password" required placeholder="Re-enter your password">
+      </div>
+      <button type="submit" class="btn btn-primary btn-block">Create Account</button>
+    </form>
+    <p class="auth-footer">Already have an account? <a href="/auth/login">Log in here</a></p>
+  </div>
+</div>
+` }) %>

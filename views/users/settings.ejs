@@ -1,0 +1,76 @@
+<%- include('../layout', { body: `
+<div class="page-header">
+  <h1>Account Settings</h1>
+</div>
+
+${error ? `<div class="alert alert-error">${error}</div>` : ''}
+${success ? `<div class="alert alert-success">${success}</div>` : ''}
+
+<div class="settings-grid">
+  <div class="section-card">
+    <h2>Profile Settings</h2>
+    <form method="POST" action="/users/settings" class="settings-form">
+      <div class="form-group">
+        <label>Username</label>
+        <input type="text" value="${currentUser.username}" disabled class="input-disabled">
+        <div class="form-help">Username cannot be changed.</div>
+      </div>
+      <div class="form-group">
+        <label>Email</label>
+        <input type="text" value="${currentUser.email}" disabled class="input-disabled">
+      </div>
+      <div class="form-group">
+        <label for="avatar">Avatar URL</label>
+        <input type="url" id="avatar" name="avatar" value="${currentUser.avatar}"
+          placeholder="https://example.com/avatar.jpg">
+        <div class="form-help">Enter a URL to an image. Leave default for the built-in avatar.</div>
+      </div>
+      <div class="form-group">
+        <label for="bio">Bio</label>
+        <textarea id="bio" name="bio" rows="4" maxlength="500"
+          placeholder="Tell us about yourself...">${currentUser.bio || ''}</textarea>
+        <div class="form-help">Max 500 characters.</div>
+      </div>
+      <button type="submit" class="btn btn-primary">Save Profile</button>
+    </form>
+  </div>
+
+  <div class="section-card">
+    <h2>Change Password</h2>
+    <form method="POST" action="/users/settings" class="settings-form">
+      <div class="form-group">
+        <label for="current_password">Current Password</label>
+        <input type="password" id="current_password" name="current_password" required>
+      </div>
+      <div class="form-group">
+        <label for="new_password">New Password</label>
+        <input type="password" id="new_password" name="new_password" required minlength="6">
+      </div>
+      <div class="form-group">
+        <label for="confirm_password">Confirm New Password</label>
+        <input type="password" id="confirm_password" name="confirm_password" required>
+      </div>
+      <button type="submit" class="btn btn-primary">Change Password</button>
+    </form>
+  </div>
+
+  <div class="section-card">
+    <h2>API Keys</h2>
+    <p>Generate API keys to access the CommuniForums data export API.</p>
+    <form id="api-key-form" class="settings-form">
+      <div class="form-group">
+        <label for="key-name">Key Name</label>
+        <input type="text" id="key-name" placeholder="My API Key" required>
+      </div>
+      <button type="submit" class="btn btn-primary">Generate Key</button>
+    </form>
+    <div id="api-key-result" class="mt-2" style="display:none">
+      <div class="alert alert-success">
+        <strong>Your API Key:</strong>
+        <code id="api-key-value" class="api-key-display"></code>
+        <p class="mt-1">Save this key now! It cannot be retrieved again.</p>
+      </div>
+    </div>
+  </div>
+</div>
+` }) %>

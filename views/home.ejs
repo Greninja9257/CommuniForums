@@ -1,0 +1,114 @@
+<%- include('layout', { body: `
+<div class="home-hero">
+  <h1>Welcome to CommuniForums</h1>
+  <p class="hero-subtitle">Share knowledge, build community, and keep it positive.</p>
+  <div class="positivity-banner">💡 ${positivityMessage}</div>
+</div>
+
+<div class="home-grid">
+  <div class="home-main">
+    <div class="section-card">
+      <div class="section-header">
+        <h2>Popular Categories</h2>
+        <a href="/forums" class="btn btn-sm">View All</a>
+      </div>
+      <div class="category-list">
+        ${categories.length === 0 ? `
+          <div class="empty-state">No categories yet.</div>
+        ` : categories.map(c => `
+          <a href="/forums/category/${c.id}" class="category-card">
+            <div class="category-icon">${c.icon || '💬'}</div>
+            <div class="category-info">
+              <h3>${c.name}</h3>
+              ${c.description ? `<p>${c.description}</p>` : ''}
+              <div class="category-stats">
+                <span>${c.thread_count || 0} threads</span>
+                <span>${c.post_count || 0} posts</span>
+              </div>
+            </div>
+            <div class="category-arrow">&rsaquo;</div>
+          </a>
+        `).join('')}
+      </div>
+    </div>
+
+    <div class="section-card">
+      <div class="section-header">
+        <h2>Recent Threads</h2>
+        <a href="/forums" class="btn btn-sm">Browse</a>
+      </div>
+      <div class="thread-list-compact">
+        ${stats.recentThreads.length === 0 ? `
+          <div class="empty-state">No threads yet.</div>
+        ` : stats.recentThreads.map(t => `
+          <a href="/forums/thread/${t.id}" class="thread-row-compact">
+            <div>
+              <span class="thread-compact-title">${t.title}</span>
+              <span class="thread-compact-meta">by ${t.author_name} in ${t.category_name}</span>
+            </div>
+            <span class="thread-compact-time">${formatDate(t.last_post_at || t.created_at)}</span>
+          </a>
+        `).join('')}
+      </div>
+    </div>
+  </div>
+
+  <aside class="home-sidebar">
+    <div class="section-card stats-card">
+      <h3>Community Stats</h3>
+      <div class="stat-grid">
+        <div class="stat-item">
+          <span class="stat-number">${stats.totalUsers}</span>
+          <span class="stat-label">Members</span>
+        </div>
+        <div class="stat-item">
+          <span class="stat-number">${stats.totalThreads}</span>
+          <span class="stat-label">Threads</span>
+        </div>
+        <div class="stat-item">
+          <span class="stat-number">${stats.totalPosts}</span>
+          <span class="stat-label">Posts</span>
+        </div>
+        <div class="stat-item">
+          <span class="stat-number">${stats.totalThanks}</span>
+          <span class="stat-label">Thanks</span>
+        </div>
+      </div>
+      ${stats.newestUser ? `
+        <div class="newest-member">
+          Newest member: <a href="/users/profile/${stats.newestUser.id}">${stats.newestUser.username}</a>
+        </div>
+      ` : ''}
+    </div>
+
+    <div class="section-card">
+      <div class="section-header">
+        <h3>Top Contributors</h3>
+        <a href="/users/members?sort=thanks" class="btn btn-sm">View</a>
+      </div>
+      <div class="leaderboard">
+        ${stats.topContributors.length === 0 ? `
+          <div class="empty-state">No contributors yet.</div>
+        ` : stats.topContributors.map((u, idx) => `
+          <a href="/users/profile/${u.id}" class="leaderboard-entry">
+            <span class="leaderboard-rank">#${idx + 1}</span>
+            <div class="leaderboard-info">
+              <span class="leaderboard-name">${u.username}</span>
+              <span class="leaderboard-badge" style="color: ${u.rank.color}">${u.rank.title}</span>
+            </div>
+            <span class="leaderboard-thanks">⭐ ${u.thanks_received}</span>
+          </a>
+        `).join('')}
+      </div>
+    </div>
+
+    ${!currentUser ? `
+      <div class="section-card join-card">
+        <h3>Join the Conversation</h3>
+        <p>Create your free account and start posting today.</p>
+        <a href="/auth/register" class="btn btn-primary">Get Started</a>
+      </div>
+    ` : ''}
+  </aside>
+</div>
+` }) %>

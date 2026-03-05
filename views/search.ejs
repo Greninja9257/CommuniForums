@@ -1,0 +1,91 @@
+<%- include('layout', { body: `
+<div class="page-header">
+  <h1>🔍 Search</h1>
+</div>
+
+<div class="search-form-container">
+  <form action="/search" method="GET" class="search-form">
+    <div class="search-input-group">
+      <input type="text" name="q" value="${q}" placeholder="Search threads, posts, and users..."
+        class="search-input" autofocus>
+      <button type="submit" class="btn btn-primary">Search</button>
+    </div>
+    <div class="search-filters">
+      <select name="type" class="search-select">
+        <option value="all" ${type === 'all' ? 'selected' : ''}>All</option>
+        <option value="threads" ${type === 'threads' ? 'selected' : ''}>Threads</option>
+        <option value="posts" ${type === 'posts' ? 'selected' : ''}>Posts</option>
+        <option value="users" ${type === 'users' ? 'selected' : ''}>Users</option>
+      </select>
+      <select name="category" class="search-select">
+        <option value="">All Categories</option>
+        ${categories.map(c => `
+          <option value="${c.id}" ${category == c.id ? 'selected' : ''}>${c.name}</option>
+        `).join('')}
+      </select>
+    </div>
+  </form>
+</div>
+
+${q ? `
+  <p class="search-results-info">Found ${totalResults} result(s) for "<strong>${q}</strong>"</p>
+
+  ${threads.length > 0 ? `
+    <div class="section-card">
+      <h2>Threads</h2>
+      <div class="search-results">
+        ${threads.map(t => `
+          <a href="/forums/thread/${t.id}" class="search-result-item">
+            <h3>${t.title}</h3>
+            <div class="search-result-meta">
+              by ${t.author_name} in ${t.category_name} &middot; ${formatDate(t.created_at)}
+            </div>
+          </a>
+        `).join('')}
+      </div>
+    </div>
+  ` : ''}
+
+  ${posts.length > 0 ? `
+    <div class="section-card">
+      <h2>Posts</h2>
+      <div class="search-results">
+        ${posts.map(p => `
+          <a href="/forums/thread/${p.thread_id}#post-${p.id}" class="search-result-item">
+            <h3>${p.thread_title}</h3>
+            <p>${truncate(p.content, 200)}</p>
+            <div class="search-result-meta">
+              by ${p.author_name} &middot; ${formatDate(p.created_at)}
+            </div>
+          </a>
+        `).join('')}
+      </div>
+    </div>
+  ` : ''}
+
+  ${users.length > 0 ? `
+    <div class="section-card">
+      <h2>Users</h2>
+      <div class="member-grid">
+        ${users.map(u => `
+          <a href="/users/profile/${u.id}" class="member-card">
+            <img src="${u.avatar}" alt="" class="member-avatar" onerror="this.src='/css/default-avatar.svg'">
+            <div class="member-info">
+              <strong>${u.username}</strong>
+              <span class="member-rank" style="color: ${u.rank.color}">${u.rank.title}</span>
+              <span>⭐ ${u.thanks_received} &middot; 📝 ${u.post_count}</span>
+            </div>
+          </a>
+        `).join('')}
+      </div>
+    </div>
+  ` : ''}
+
+  ${totalResults === 0 ? `
+    <div class="empty-state-large">
+      <h2>No results found</h2>
+      <p>Try different keywords or broaden your search.</p>
+    </div>
+  ` : ''}
+` : ''}
+` }) %>

@@ -1,0 +1,55 @@
+<%- include('../layout', { body: `
+<div class="page-header">
+  <div>
+    <h1>Forums</h1>
+    <p>Browse categories and join the conversations.</p>
+  </div>
+</div>
+
+<div class="categories-page">
+  ${categories.length === 0 ? `
+    <div class="empty-state-large">
+      <h2>No categories yet</h2>
+      <p>Please check back soon.</p>
+    </div>
+  ` : categories.map(cat => `
+    <div class="category-section">
+      <div class="category-section-header">
+        <div class="category-icon-large">${cat.icon || '💬'}</div>
+        <div>
+          <h2><a href="/forums/category/${cat.id}">${cat.name}</a></h2>
+          ${cat.description ? `<p>${cat.description}</p>` : ''}
+        </div>
+      </div>
+
+      ${cat.subcategories && cat.subcategories.length > 0 ? `
+        <div class="subcategory-list">
+          ${cat.subcategories.map(sub => `
+            <a href="/forums/category/${sub.id}" class="subcategory-item">
+              <span class="subcategory-icon">${sub.icon || '💬'}</span>
+              <span class="subcategory-info">
+                <strong>${sub.name}</strong>
+                ${sub.description ? `<span>${sub.description}</span>` : ''}
+              </span>
+              <span class="subcategory-stats">
+                <span>${sub.thread_count || 0} threads</span>
+                <span>${sub.post_count || 0} posts</span>
+              </span>
+            </a>
+          `).join('')}
+        </div>
+      ` : ''}
+
+      <div class="category-section-footer">
+        <span>${cat.thread_count || 0} threads · ${cat.post_count || 0} posts</span>
+        <span class="latest-info">
+          ${cat.latest_thread_id ? `
+            Latest: <a href="/forums/thread/${cat.latest_thread_id}">${cat.latest_thread_title}</a>
+            ${cat.latest_poster ? `by ${cat.latest_poster}` : ''}
+          ` : 'No threads yet'}
+        </span>
+      </div>
+    </div>
+  `).join('')}
+</div>
+` }) %>

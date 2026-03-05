@@ -1,0 +1,73 @@
+<%- include('../layout', { body: `
+<nav class="breadcrumb">
+  <a href="/">Home</a> &rsaquo;
+  <a href="/forums">Forums</a> &rsaquo;
+  <span>${category.name}</span>
+</nav>
+
+<div class="page-header">
+  <div>
+    <h1>${category.icon} ${category.name}</h1>
+    ${category.description ? `<p>${category.description}</p>` : ''}
+  </div>
+  ${currentUser ? `<a href="/forums/new-thread/${category.id}" class="btn btn-primary">+ New Thread</a>` : ''}
+</div>
+
+${subcategories.length > 0 ? `
+  <div class="subcategory-bar">
+    ${subcategories.map(sub => `
+      <a href="/forums/category/${sub.id}" class="subcategory-chip">${sub.icon} ${sub.name}</a>
+    `).join('')}
+  </div>
+` : ''}
+
+${threads.length === 0 ? `
+  <div class="empty-state-large">
+    <h2>No threads yet</h2>
+    <p>Be the first to start a discussion in this category!</p>
+    ${currentUser ? `<a href="/forums/new-thread/${category.id}" class="btn btn-primary">Create Thread</a>` : '<a href="/auth/register" class="btn btn-primary">Register to Post</a>'}
+  </div>
+` : `
+  <div class="thread-list">
+    <div class="thread-list-header">
+      <span class="th-topic">Topic</span>
+      <span class="th-stats">Replies</span>
+      <span class="th-stats">Views</span>
+      <span class="th-activity">Last Activity</span>
+    </div>
+    ${threads.map(t => `
+      <div class="thread-row ${t.is_pinned ? 'thread-pinned' : ''} ${t.is_locked ? 'thread-locked' : ''} ${t.is_solved ? 'thread-solved' : ''}">
+        <div class="thread-topic">
+          <div class="thread-badges">
+            ${t.is_pinned ? '<span class="thread-badge badge-pinned">📌 Pinned</span>' : ''}
+            ${t.is_locked ? '<span class="thread-badge badge-locked">🔒 Locked</span>' : ''}
+            ${t.is_solved ? '<span class="thread-badge badge-solved">✅ Solved</span>' : ''}
+          </div>
+          <a href="/forums/thread/${t.id}" class="thread-title">${t.title}</a>
+          <div class="thread-meta">
+            by <a href="/users/profile/${t.author_id}">${t.author_name}</a>
+            &middot; ${formatDate(t.created_at)}
+          </div>
+        </div>
+        <span class="thread-stat">${t.reply_count || 0}</span>
+        <span class="thread-stat">${t.view_count || 0}</span>
+        <div class="thread-activity">
+          <span>${formatDate(t.last_post_at)}</span>
+          ${t.last_poster_name ? `<span class="thread-last-poster">by ${t.last_poster_name}</span>` : ''}
+        </div>
+      </div>
+    `).join('')}
+  </div>
+
+  ${totalPages > 1 ? `
+    <div class="pagination">
+      ${page > 1 ? `<a href="/forums/category/${category.id}?page=${page - 1}" class="page-link">&laquo; Prev</a>` : ''}
+      ${Array.from({length: Math.min(totalPages, 10)}, (_, i) => {
+        const p = i + 1;
+        return `<a href="/forums/category/${category.id}?page=${p}" class="page-link ${p === page ? 'active' : ''}">${p}</a>`;
+      }).join('')}
+      ${page < totalPages ? `<a href="/forums/category/${category.id}?page=${page + 1}" class="page-link">Next &raquo;</a>` : ''}
+    </div>
+  ` : ''}
+`}
+` }) %>

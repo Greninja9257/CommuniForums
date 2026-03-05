@@ -1,0 +1,31 @@
+{
+  "name": "communiforums",
+  "version": "1.0.0",
+  "description": "CommuniForums - A community forums platform built on positivity",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "seed": "node seed.js",
+    "dev": "node --watch server.js"
+  },
+  "keywords": [
+    "forum",
+    "community"
+  ],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "bcryptjs": "^3.0.3",
+    "better-sqlite3": "^12.6.2",
+    "connect-sqlite3": "^0.9.16",
+    "dompurify": "^3.3.1",
+    "ejs": "^4.0.1",
+    "express": "^5.2.1",
+    "express-session": "^1.19.0",
+    "jsdom": "^28.0.0",
+    "marked": "^17.0.1",
+    "multer": "^2.0.2",
+    "uuid": "^13.0.0"
+  }
+}

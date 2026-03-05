@@ -1,0 +1,32 @@
+<%- include('../layout', { body: `
+<nav class="breadcrumb">
+  <a href="/messages">Messages</a> &rsaquo;
+  <span>${message.subject}</span>
+</nav>
+
+<div class="section-card message-detail">
+  <div class="message-detail-header">
+    <div>
+      <h2>${message.subject}</h2>
+      <div class="message-detail-meta">
+        <span>From: <a href="/users/profile/${message.sender_id}"><strong>${message.sender_name}</strong></a></span>
+        <span>To: <a href="/users/profile/${message.receiver_id}"><strong>${message.receiver_name}</strong></a></span>
+        <span>&middot; ${formatDate(message.created_at)}</span>
+      </div>
+    </div>
+  </div>
+  <div class="message-detail-body">
+    ${message.content}
+  </div>
+  <div class="message-detail-actions">
+    ${message.sender_id !== currentUser.id ? `
+      <a href="/messages/new?to=${message.sender_name}" class="btn btn-primary">Reply</a>
+    ` : ''}
+    <form method="POST" action="/messages/${message.id}/delete" style="display:inline"
+      onsubmit="return confirm('Delete this message?')">
+      <button class="btn btn-danger">Delete</button>
+    </form>
+    <a href="/messages" class="btn">Back to Inbox</a>
+  </div>
+</div>
+` }) %>

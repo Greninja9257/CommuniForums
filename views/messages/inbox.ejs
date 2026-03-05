@@ -1,0 +1,35 @@
+<%- include('../layout', { body: `
+<div class="page-header">
+  <h1>✉️ Messages</h1>
+  <a href="/messages/new" class="btn btn-primary">+ New Message</a>
+</div>
+
+<div class="message-tabs">
+  <a href="/messages?tab=inbox" class="tab ${tab === 'inbox' ? 'active' : ''}">Inbox</a>
+  <a href="/messages?tab=sent" class="tab ${tab === 'sent' ? 'active' : ''}">Sent</a>
+</div>
+
+${messages.length === 0 ? `
+  <div class="empty-state-large">
+    <h2>No messages</h2>
+    <p>${tab === 'inbox' ? 'Your inbox is empty.' : 'No sent messages.'}</p>
+  </div>
+` : `
+  <div class="message-list">
+    ${messages.map(m => `
+      <a href="/messages/${m.id}" class="message-row ${!m.is_read && tab === 'inbox' ? 'unread' : ''}">
+        <img src="${m.other_avatar}" alt="" class="user-avatar-small" onerror="this.src='/css/default-avatar.svg'">
+        <div class="message-info">
+          <div class="message-top">
+            <strong>${m.other_username}</strong>
+            <span class="message-time">${formatDate(m.created_at)}</span>
+          </div>
+          <div class="message-subject">${m.subject}</div>
+          <div class="message-preview">${truncate(m.content, 100)}</div>
+        </div>
+        ${!m.is_read && tab === 'inbox' ? '<span class="unread-dot"></span>' : ''}
+      </a>
+    `).join('')}
+  </div>
+`}
+` }) %>

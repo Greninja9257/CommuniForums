@@ -1,0 +1,109 @@
+<%- include('../layout', { body: `
+<div class="page-header">
+  <h1>⚙️ Manage Users</h1>
+</div>
+
+<div class="admin-nav">
+  <a href="/admin" class="btn btn-sm">Dashboard</a>
+  <a href="/admin/users" class="btn btn-sm btn-primary">Users</a>
+  <a href="/admin/categories" class="btn btn-sm">Categories</a>
+</div>
+
+<div class="section-card">
+  <form action="/admin/users" method="GET" class="search-inline">
+    <input type="text" name="search" value="${search}" placeholder="Search users...">
+    <button class="btn btn-sm">Search</button>
+  </form>
+
+  <table class="admin-table">
+    <thead>
+      <tr>
+        <th>User</th>
+        <th>Role</th>
+        <th>Rank</th>
+        <th>Posts</th>
+        <th>Thanks</th>
+        <th>Status</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${users.map(u => `
+        <tr>
+          <td>
+            <a href="/users/profile/${u.id}" class="admin-user-link">
+              <strong>${u.username}</strong>
+              <small>${u.email}</small>
+            </a>
+          </td>
+          <td><span class="role-badge role-${u.role}">${u.role}</span></td>
+          <td style="color: ${u.rank.color}">${u.rank.title}</td>
+          <td>${u.post_count}</td>
+          <td>${u.thanks_received}</td>
+          <td>
+            ${u.banned_until && new Date(u.banned_until) > new Date()
+              ? '<span class="status-banned">Banned</span>'
+              : '<span class="status-active">Active</span>'}
+          </td>
+          <td class="admin-actions">
+            ${u.banned_until && new Date(u.banned_until) > new Date() ? `
+              <form method="POST" action="/admin/users/${u.id}/unban" style="display:inline">
+                <button class="btn btn-sm btn-primary">Unban</button>
+              </form>
+            ` : `
+              <button class="btn btn-sm btn-danger" onclick="showBanModal(${u.id}, '${u.username}')">Ban</button>
+            `}
+            ${currentUser.role === 'admin' ? `
+              <form method="POST" action="/admin/users/${u.id}/role" style="display:inline">
+                <select name="role" onchange="this.form.submit()" class="role-select">
+                  <option value="user" ${u.role === 'user' ? 'selected' : ''}>User</option>
+                  <option value="moderator" ${u.role === 'moderator' ? 'selected' : ''}>Mod</option>
+                  <option value="admin" ${u.role === 'admin' ? 'selected' : ''}>Admin</option>
+                </select>
+              </form>
+            ` : ''}
+          </td>
+        </tr>
+      `).join('')}
+    </tbody>
+  </table>
+
+  ${totalPages > 1 ? `
+    <div class="pagination">
+      ${page > 1 ? `<a href="/admin/users?page=${page - 1}&search=${search}" class="page-link">&laquo; Prev</a>` : ''}
+      ${Array.from({length: Math.min(totalPages, 10)}, (_, i) => {
+        const p = i + 1;
+        return `<a href="/admin/users?page=${p}&search=${search}" class="page-link ${p === page ? 'active' : ''}">${p}</a>`;
+      }).join('')}
+      ${page < totalPages ? `<a href="/admin/users?page=${page + 1}&search=${search}" class="page-link">Next &raquo;</a>` : ''}
+    </div>
+  ` : ''}
+</div>
+
+<!-- Ban Modal -->
+<div class="modal" id="ban-modal">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h3>Ban User: <span id="ban-username"></span></h3>
+      <button class="modal-close" onclick="closeModal('ban-modal')">&times;</button>
+    </div>
+    <form id="ban-form" method="POST">
+      <div class="form-group">
+        <label>Duration (days)</label>
+        <select name="days">
+          <option value="1">1 day</option>
+          <option value="3">3 days</option>
+          <option value="7" selected>7 days</option>
+          <option value="30">30 days</option>
+          <option value="365">1 year</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Reason</label>
+        <textarea name="reason" rows="3" required placeholder="Reason for ban..."></textarea>
+      </div>
+      <button type="submit" class="btn btn-danger">Ban User</button>
+    </form>
+  </div>
+</div>
+` }) %>
