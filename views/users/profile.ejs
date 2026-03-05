@@ -146,9 +146,12 @@
       <div class="rank-progress">
         <div class="rank-current" style="color: ${rank.color}">${rank.title}</div>
         <div class="rank-bar">
-          <div class="rank-bar-fill" style="width: ${Math.min(100, (profileUser.thanks_received / 1000) * 100)}%"></div>
+          <div class="rank-bar-fill" style="width: ${rankProgress.progressPercent}%"></div>
         </div>
-        <span class="rank-info">${profileUser.thanks_received} / 1000 thanks to Forum God</span>
+        <span class="rank-info">
+          ${rankProgress.currentThanks} / ${rankProgress.requiredThanks} thanks
+          ${rankProgress.nextRankTitle ? ` to ${rankProgress.nextRankTitle}` : ' (highest rank reached)'}
+        </span>
       </div>
     </div>
   </div>

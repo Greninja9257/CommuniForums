@@ -6,9 +6,30 @@ if (!DATABASE_URL) {
   throw new Error('DATABASE_URL is required. Point this to your Replit SQL/Postgres instance.');
 }
 
+function normalizeConnectionString(rawUrl) {
+  try {
+    const url = new URL(rawUrl);
+    const sslmode = url.searchParams.get('sslmode');
+    if (sslmode && ['prefer', 'require', 'verify-ca'].includes(sslmode)) {
+      // Align with upcoming pg connection-string behavior and silence warnings.
+      url.searchParams.set('sslmode', 'verify-full');
+    }
+    return url.toString();
+  } catch (err) {
+    return rawUrl;
+  }
+}
+
+const normalizedDatabaseUrl = normalizeConnectionString(DATABASE_URL);
+
 const pool = new Pool({
-  connectionString: DATABASE_URL,
+  connectionString: normalizedDatabaseUrl,
   ssl: process.env.PGSSLMODE === 'disable' ? false : { rejectUnauthorized: false }
+});
+
+pool.on('error', (err) => {
+  // Prevent process crash when provider restarts/terminates idle connections.
+  console.error('Postgres pool error (recoverable):', err.message);
 });
 
 function convertPlaceholders(sql) {
@@ -134,7 +155,8 @@ async function initialize() {
       rank_override_color TEXT NULL,
       rank_override_reason TEXT NULL,
       rank_override_by INTEGER NULL REFERENCES users(id),
-      rank_override_at TIMESTAMPTZ NULL
+      rank_override_at TIMESTAMPTZ NULL,
+      selected_rank_title TEXT NULL
     );
 
     CREATE TABLE IF NOT EXISTS categories (
@@ -339,17 +361,54 @@ async function initialize() {
   for (const [name, icon] of badgeIconUpdates) {
     await db.run('UPDATE badges SET icon = ? WHERE name = ?', icon, name);
   }
+
+  await db.exec(`
+    ALTER TABLE users
+    ADD COLUMN IF NOT EXISTS selected_rank_title TEXT NULL
+  `);
 }
 
 const RANKS = [
   { min: 0, title: 'Newcomer', color: '#6b7280' },
-  { min: 5, title: 'Contributor', color: '#3b82f6' },
-  { min: 25, title: 'Active Member', color: '#10b981' },
-  { min: 50, title: 'Valued Member', color: '#8b5cf6' },
-  { min: 100, title: 'Expert', color: '#f59e0b' },
-  { min: 250, title: 'Elite', color: '#ef4444' },
-  { min: 500, title: 'Legend', color: '#ec4899' },
-  { min: 1000, title: 'Forum God', color: '#f97316' },
+  { min: 1, title: 'First Spark', color: '#9ca3af' },
+  { min: 2, title: 'Curious Mind', color: '#60a5fa' },
+  { min: 3, title: 'Helpful Voice', color: '#38bdf8' },
+  { min: 4, title: 'Rising Helper', color: '#22d3ee' },
+  { min: 5, title: 'Trusted Reply', color: '#2dd4bf' },
+  { min: 6, title: 'Reliable Member', color: '#34d399' },
+  { min: 7, title: 'Insightful Peer', color: '#4ade80' },
+  { min: 8, title: 'Community Builder', color: '#84cc16' },
+  { min: 9, title: 'Problem Solver', color: '#a3e635' },
+  { min: 10, title: 'Go-To Member', color: '#bef264' },
+  { min: 12, title: 'Strong Contributor', color: '#facc15' },
+  { min: 14, title: 'Skilled Contributor', color: '#fbbf24' },
+  { min: 16, title: 'Knowledge Sharer', color: '#f59e0b' },
+  { min: 18, title: 'Mentor in Training', color: '#fb923c' },
+  { min: 20, title: 'Mentor', color: '#f97316' },
+  { min: 25, title: 'Senior Mentor', color: '#f97316' },
+  { min: 30, title: 'Quality Contributor', color: '#fb7185' },
+  { min: 35, title: 'Solution Architect', color: '#f43f5e' },
+  { min: 40, title: 'Forum Specialist', color: '#ec4899' },
+  { min: 50, title: 'Forum Expert', color: '#d946ef' },
+  { min: 60, title: 'Expert Advisor', color: '#c084fc' },
+  { min: 75, title: 'Principal Advisor', color: '#a78bfa' },
+  { min: 90, title: 'Lead Advisor', color: '#818cf8' },
+  { min: 110, title: 'Veteran Contributor', color: '#6366f1' },
+  { min: 130, title: 'Senior Veteran', color: '#4f46e5' },
+  { min: 150, title: 'Master Contributor', color: '#4338ca' },
+  { min: 175, title: 'Community Pillar', color: '#3730a3' },
+  { min: 200, title: 'Knowledge Champion', color: '#312e81' },
+  { min: 250, title: 'Elite', color: '#7f1d1d' },
+  { min: 300, title: 'Distinguished Elite', color: '#991b1b' },
+  { min: 350, title: 'Hall of Fame', color: '#b91c1c' },
+  { min: 400, title: 'Legend', color: '#dc2626' },
+  { min: 500, title: 'Mythic Legend', color: '#ef4444' },
+  { min: 650, title: 'Grand Legend', color: '#f43f5e' },
+  { min: 800, title: 'Titan', color: '#e11d48' },
+  { min: 1000, title: 'Forum God', color: '#c2410c' },
+  { min: 1250, title: 'Ascendant', color: '#ea580c' },
+  { min: 1500, title: 'Celestial', color: '#f97316' },
+  { min: 2000, title: 'Immortal', color: '#fb923c' },
 ];
 
 function getRank(thanksReceived) {
@@ -373,6 +432,12 @@ function getEffectiveRank(user) {
       color: user.rank_override_color || '#111827',
       min: 0
     };
+  }
+  if (user.selected_rank_title) {
+    const selected = getRankByTitle(user.selected_rank_title);
+    if (selected && (user.thanks_received || 0) >= selected.min) {
+      return selected;
+    }
   }
   return getRank(user.thanks_received || 0);
 }

@@ -5,18 +5,45 @@ const { db, getRank, getEffectiveRank, getRankByTitle, isHighestRank, RANKS } = 
 const { requireAuth } = require('../middleware/auth');
 const { scanFields, warningMessage } = require('../utils/profanity');
 
+function getUnlockedRanks(thanksReceived) {
+  return RANKS.filter(r => (thanksReceived || 0) >= r.min);
+}
+
+async function getSettingsState(userId) {
+  const settingsUser = await db.prepare(`
+    SELECT id, username, email, avatar, bio, thanks_received, selected_rank_title
+    FROM users WHERE id = ?
+  `).get(userId);
+  return {
+    settingsUser,
+    unlockedRanks: getUnlockedRanks(settingsUser?.thanks_received || 0),
+    currentSelectedRankTitle: settingsUser?.selected_rank_title || ''
+  };
+}
+
 router.get('/profile/:id', async (req, res, next) => {
   try {
     const user = await db.prepare(`
       SELECT id, username, email, avatar, bio, role, thanks_received, thanks_given,
         post_count, thread_count, banned_until, ban_reason, last_active, created_at,
-        rank_override_title, rank_override_color, rank_override_reason, rank_override_by, rank_override_at
+        rank_override_title, rank_override_color, rank_override_reason, rank_override_by, rank_override_at,
+        selected_rank_title
       FROM users WHERE id = ?
     `).get(req.params.id);
 
     if (!user) return res.status(404).render('error', { title: 'Not Found', message: 'User not found.' });
 
     const rank = getEffectiveRank(user);
+    const currentThanks = user.thanks_received || 0;
+    const achievedRank = getRank(currentThanks);
+    const nextRank = RANKS.find(r => r.min > currentThanks) || null;
+    const requiredThanks = nextRank ? nextRank.min : currentThanks;
+    const rangeStart = achievedRank.min;
+    const rangeEnd = nextRank ? nextRank.min : currentThanks;
+    const rangeSize = Math.max(1, rangeEnd - rangeStart);
+    const progressPercent = nextRank
+      ? Math.max(0, Math.min(100, ((currentThanks - rangeStart) / rangeSize) * 100))
+      : 100;
 
     const badges = await db.prepare(`
       SELECT b.*, ub.awarded_at FROM badges b
@@ -66,6 +93,12 @@ router.get('/profile/:id', async (req, res, next) => {
       recentThreads,
       thanksGivenRecent,
       postsRecent,
+      rankProgress: {
+        currentThanks,
+        requiredThanks,
+        nextRankTitle: nextRank ? nextRank.title : null,
+        progressPercent
+      },
       getRank
     });
   } catch (error) {
@@ -73,19 +106,46 @@ router.get('/profile/:id', async (req, res, next) => {
   }
 });
 
-router.get('/settings', requireAuth, (req, res) => {
-  res.render('users/settings', { title: 'Settings', error: null, success: null });
+router.get('/settings', requireAuth, async (req, res, next) => {
+  try {
+    const state = await getSettingsState(res.locals.currentUser.id);
+    if (state.settingsUser) {
+      res.locals.currentUser = { ...res.locals.currentUser, ...state.settingsUser };
+    }
+    res.render('users/settings', {
+      title: 'Settings',
+      error: null,
+      success: null,
+      unlockedRanks: state.unlockedRanks,
+      currentSelectedRankTitle: state.currentSelectedRankTitle
+    });
+  } catch (error) {
+    next(error);
+  }
 });
 
 router.post('/settings', requireAuth, async (req, res, next) => {
   try {
-    const { bio, avatar, current_password, new_password, confirm_password } = req.body;
+    const { bio, avatar, current_password, new_password, confirm_password, selected_rank_title } = req.body;
+    const renderSettings = async (error, success) => {
+      const state = await getSettingsState(res.locals.currentUser.id);
+      if (state.settingsUser) {
+        res.locals.currentUser = { ...res.locals.currentUser, ...state.settingsUser };
+      }
+      return res.render('users/settings', {
+        title: 'Settings',
+        error,
+        success,
+        unlockedRanks: state.unlockedRanks,
+        currentSelectedRankTitle: state.currentSelectedRankTitle
+      });
+    };
 
     if (bio !== undefined) {
       const cleanBio = (bio || '').substring(0, 500);
       const bioScan = scanFields({ bio: cleanBio });
       if (bioScan.flagged) {
-        return res.render('users/settings', { title: 'Settings', error: warningMessage(bioScan), success: null });
+        return renderSettings(warningMessage(bioScan), null);
       }
       await db.prepare('UPDATE users SET bio = ? WHERE id = ?').run(cleanBio, res.locals.currentUser.id);
     }
@@ -98,19 +158,34 @@ router.post('/settings', requireAuth, async (req, res, next) => {
       const user = await db.prepare('SELECT password_hash FROM users WHERE id = ?').get(res.locals.currentUser.id);
       const valid = await bcrypt.compare(current_password, user.password_hash);
       if (!valid) {
-        return res.render('users/settings', { title: 'Settings', error: 'Current password is incorrect.', success: null });
+        return renderSettings('Current password is incorrect.', null);
       }
       if (new_password.length < 6) {
-        return res.render('users/settings', { title: 'Settings', error: 'New password must be at least 6 characters.', success: null });
+        return renderSettings('New password must be at least 6 characters.', null);
       }
       if (new_password !== confirm_password) {
-        return res.render('users/settings', { title: 'Settings', error: 'New passwords do not match.', success: null });
+        return renderSettings('New passwords do not match.', null);
       }
       const hash = await bcrypt.hash(new_password, 12);
       await db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(hash, res.locals.currentUser.id);
     }
 
-    res.render('users/settings', { title: 'Settings', error: null, success: 'Settings updated successfully!' });
+    if (selected_rank_title !== undefined) {
+      const selectedTitle = (selected_rank_title || '').trim();
+      if (!selectedTitle) {
+        await db.prepare('UPDATE users SET selected_rank_title = NULL WHERE id = ?').run(res.locals.currentUser.id);
+      } else {
+        const currentUser = await db.prepare('SELECT thanks_received FROM users WHERE id = ?').get(res.locals.currentUser.id);
+        const unlocked = getUnlockedRanks(currentUser?.thanks_received || 0);
+        const allowedTitles = new Set(unlocked.map(r => r.title));
+        if (!allowedTitles.has(selectedTitle)) {
+          return renderSettings('You can only select ranks you have already unlocked.', null);
+        }
+        await db.prepare('UPDATE users SET selected_rank_title = ? WHERE id = ?').run(selectedTitle, res.locals.currentUser.id);
+      }
+    }
+
+    return renderSettings(null, 'Settings updated successfully!');
   } catch (error) {
     next(error);
   }
@@ -134,7 +209,7 @@ router.get('/members', async (req, res, next) => {
 
     const users = await db.prepare(`
       SELECT id, username, avatar, role, thanks_received, post_count, created_at, last_active,
-        rank_override_title, rank_override_color
+        rank_override_title, rank_override_color, selected_rank_title
       FROM users ORDER BY ${orderBy} LIMIT ? OFFSET ?
     `).all(perPage, offset);
 

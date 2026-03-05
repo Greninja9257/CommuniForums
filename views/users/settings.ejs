@@ -31,6 +31,16 @@ ${success ? `<div class="alert alert-success">${success}</div>` : ''}
           placeholder="Tell us about yourself...">${currentUser.bio || ''}</textarea>
         <div class="form-help">Max 500 characters.</div>
       </div>
+      <div class="form-group">
+        <label for="selected_rank_title">Displayed Rank Title</label>
+        <select id="selected_rank_title" name="selected_rank_title">
+          <option value="" ${!currentSelectedRankTitle ? 'selected' : ''}>Auto (highest unlocked)</option>
+          ${unlockedRanks.map(r => `
+            <option value="${r.title}" ${currentSelectedRankTitle === r.title ? 'selected' : ''}>${r.title}</option>
+          `).join('')}
+        </select>
+        <div class="form-help">Choose any rank you have unlocked.</div>
+      </div>
       <button type="submit" class="btn btn-primary">Save Profile</button>
     </form>
   </div>
