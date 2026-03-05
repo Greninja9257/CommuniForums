@@ -1,35 +1,13 @@
 <%- include('../layout', { body: `
 <div class="page-header">
-  <div>
+  <div class="page-header-copy">
     <h1>Forums</h1>
     <p>Browse categories and join the conversations.</p>
   </div>
+  ${currentUser ? `
+    <button type="button" class="btn btn-primary" onclick="openModal('create-category-modal')">Create a Category</button>
+  ` : ''}
 </div>
-
-${currentUser ? `
-  <div class="section-card category-proposal-card">
-    <h2>Create a Category</h2>
-    <p class="text-muted">Start a new topic area for the community. Keep names clear and specific.</p>
-    <form method="POST" action="/forums/categories/create" class="settings-form">
-      <div class="form-group">
-        <label for="cat-name">Name</label>
-        <input id="cat-name" type="text" name="name" required minlength="3" maxlength="60" placeholder="e.g., Database Design">
-      </div>
-      <div class="form-group">
-        <label for="cat-description">Description</label>
-        <input id="cat-description" type="text" name="description" maxlength="180" placeholder="What should be discussed in this category?">
-      </div>
-      <div class="form-group">
-        <label for="cat-parent">Parent Category (optional)</label>
-        <select id="cat-parent" name="parent_id">
-          <option value="">None (top-level)</option>
-          ${categories.map(c => `<option value="${c.id}">${c.name}</option>`).join('')}
-        </select>
-      </div>
-      <button type="submit" class="btn btn-primary">Create Category</button>
-    </form>
-  </div>
-` : ''}
 
 <div class="categories-page">
   ${categories.length === 0 ? `
@@ -77,4 +55,34 @@ ${currentUser ? `
     </div>
   `).join('')}
 </div>
+
+${currentUser ? `
+  <div class="modal" id="create-category-modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>Create a Category</h3>
+        <button class="modal-close" onclick="closeModal('create-category-modal')">&times;</button>
+      </div>
+      <p class="modal-note">Start a new topic area for the community. Keep names clear and specific.</p>
+      <form method="POST" action="/forums/categories/create" class="settings-form">
+        <div class="form-group">
+          <label for="cat-name">Name</label>
+          <input id="cat-name" type="text" name="name" required minlength="3" maxlength="60" placeholder="e.g., Database Design">
+        </div>
+        <div class="form-group">
+          <label for="cat-description">Description</label>
+          <input id="cat-description" type="text" name="description" maxlength="180" placeholder="What should be discussed in this category?">
+        </div>
+        <div class="form-group">
+          <label for="cat-parent">Parent Category (optional)</label>
+          <select id="cat-parent" name="parent_id">
+            <option value="">None (top-level)</option>
+            ${categories.map(c => `<option value="${c.id}">${c.name}</option>`).join('')}
+          </select>
+        </div>
+        <button type="submit" class="btn btn-primary">Create Category</button>
+      </form>
+    </div>
+  </div>
+` : ''}
 ` }) %>

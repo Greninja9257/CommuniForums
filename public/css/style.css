@@ -363,6 +363,7 @@ input, textarea, select, button { font-family: inherit; font-size: inherit; }
 }
 .page-header h1 { font-size: 1.6rem; }
 .page-header p { color: var(--text-secondary); width: 100%; margin-top: -4px; }
+.page-header-copy p { width: auto; margin-top: 0; }
 
 .categories-page { display: flex; flex-direction: column; gap: 16px; margin-bottom: 40px; }
 .category-section {
