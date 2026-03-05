@@ -1,17 +1,120 @@
-const Database = require('better-sqlite3');
-const path = require('path');
+const { Pool } = require('pg');
 
-const db = new Database(path.join(__dirname, 'communiforums.db'));
+const DATABASE_URL = process.env.DATABASE_URL;
 
-// Enable WAL mode for better concurrency
-db.pragma('journal_mode = WAL');
-db.pragma('foreign_keys = ON');
+if (!DATABASE_URL) {
+  throw new Error('DATABASE_URL is required. Point this to your Replit SQL/Postgres instance.');
+}
 
-function initialize() {
-  db.exec(`
-    -- Users table
+const pool = new Pool({
+  connectionString: DATABASE_URL,
+  ssl: process.env.PGSSLMODE === 'disable' ? false : { rejectUnauthorized: false }
+});
+
+function convertPlaceholders(sql) {
+  let index = 0;
+  let inSingleQuote = false;
+  let out = '';
+
+  for (let i = 0; i < sql.length; i += 1) {
+    const ch = sql[i];
+    const next = sql[i + 1];
+
+    if (ch === "'") {
+      out += ch;
+      if (inSingleQuote && next === "'") {
+        out += next;
+        i += 1;
+      } else {
+        inSingleQuote = !inSingleQuote;
+      }
+      continue;
+    }
+
+    if (!inSingleQuote && ch === '?') {
+      index += 1;
+      out += `$${index}`;
+      continue;
+    }
+
+    out += ch;
+  }
+
+  return out;
+}
+
+function normalizeSql(sql) {
+  return convertPlaceholders(String(sql)
+    .replace(/\bLIKE\b/gi, 'ILIKE')
+    .replace(/datetime\('now'\s*,\s*'-1 day'\)/gi, "NOW() - INTERVAL '1 day'")
+    .replace(/datetime\('now'\s*,\s*'-30 days'\)/gi, "NOW() - INTERVAL '30 days'")
+    .replace(/datetime\('now'\)/gi, 'NOW()'));
+}
+
+function makeDb(client = pool) {
+  return {
+    prepare(sql) {
+      return {
+        get: (...params) => this.get(sql, ...params),
+        all: (...params) => this.all(sql, ...params),
+        run: (...params) => this.run(sql, ...params),
+      };
+    },
+
+    async query(sql, params = []) {
+      return client.query(normalizeSql(sql), params);
+    },
+
+    async get(sql, ...params) {
+      const result = await this.query(sql, params);
+      return result.rows[0];
+    },
+
+    async all(sql, ...params) {
+      const result = await this.query(sql, params);
+      return result.rows;
+    },
+
+    async run(sql, ...params) {
+      let q = String(sql);
+      if (/^\s*INSERT\b/i.test(q) && !/\bRETURNING\b/i.test(q)) {
+        q = `${q.trim()} RETURNING id`;
+      }
+      const result = await this.query(q, params);
+      return {
+        changes: result.rowCount || 0,
+        lastInsertRowid: result.rows[0] ? result.rows[0].id : undefined
+      };
+    },
+
+    async exec(sql) {
+      await client.query(String(sql));
+    }
+  };
+}
+
+const db = makeDb(pool);
+
+async function transaction(handler) {
+  const client = await pool.connect();
+  const txDb = makeDb(client);
+  try {
+    await client.query('BEGIN');
+    const result = await handler(txDb);
+    await client.query('COMMIT');
+    return result;
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
+async function initialize() {
+  await db.exec(`
     CREATE TABLE IF NOT EXISTS users (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id SERIAL PRIMARY KEY,
       username TEXT UNIQUE NOT NULL,
       email TEXT UNIQUE NOT NULL,
       password_hash TEXT NOT NULL,
@@ -22,34 +125,32 @@ function initialize() {
       thanks_given INTEGER DEFAULT 0,
       post_count INTEGER DEFAULT 0,
       thread_count INTEGER DEFAULT 0,
-      banned_until DATETIME NULL,
+      banned_until TIMESTAMPTZ NULL,
       ban_reason TEXT NULL,
       ban_count INTEGER DEFAULT 0,
-      last_active DATETIME DEFAULT CURRENT_TIMESTAMP,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      last_active TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+      created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
       rank_override_title TEXT NULL,
       rank_override_color TEXT NULL,
       rank_override_reason TEXT NULL,
       rank_override_by INTEGER NULL REFERENCES users(id),
-      rank_override_at DATETIME NULL
+      rank_override_at TIMESTAMPTZ NULL
     );
 
-    -- Categories
     CREATE TABLE IF NOT EXISTS categories (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id SERIAL PRIMARY KEY,
       name TEXT NOT NULL,
       description TEXT DEFAULT '',
-      icon TEXT DEFAULT '💬',
+      icon TEXT DEFAULT '',
       display_order INTEGER DEFAULT 0,
       parent_id INTEGER NULL REFERENCES categories(id) ON DELETE SET NULL,
       thread_count INTEGER DEFAULT 0,
       post_count INTEGER DEFAULT 0,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
     );
 
-    -- Threads
     CREATE TABLE IF NOT EXISTS threads (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id SERIAL PRIMARY KEY,
       title TEXT NOT NULL,
       category_id INTEGER NOT NULL REFERENCES categories(id) ON DELETE CASCADE,
       author_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -58,78 +159,71 @@ function initialize() {
       is_solved INTEGER DEFAULT 0,
       view_count INTEGER DEFAULT 0,
       reply_count INTEGER DEFAULT 0,
-      last_post_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      last_post_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
       last_post_by INTEGER NULL REFERENCES users(id),
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
     );
 
-    -- Posts
     CREATE TABLE IF NOT EXISTS posts (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id SERIAL PRIMARY KEY,
       thread_id INTEGER NOT NULL REFERENCES threads(id) ON DELETE CASCADE,
       author_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
       content TEXT NOT NULL,
       is_edited INTEGER DEFAULT 0,
       thanks_count INTEGER DEFAULT 0,
       thumbs_down_count INTEGER DEFAULT 0,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
     );
 
-    -- Thanks
     CREATE TABLE IF NOT EXISTS thanks (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id SERIAL PRIMARY KEY,
       post_id INTEGER NOT NULL REFERENCES posts(id) ON DELETE CASCADE,
       giver_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
       receiver_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
       UNIQUE(post_id, giver_id)
     );
 
-    -- Thumbs down
     CREATE TABLE IF NOT EXISTS thumbs_down (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id SERIAL PRIMARY KEY,
       post_id INTEGER NOT NULL REFERENCES posts(id) ON DELETE CASCADE,
       giver_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
       receiver_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
       reason TEXT NOT NULL,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
       UNIQUE(post_id, giver_id)
     );
 
-    -- Badges
     CREATE TABLE IF NOT EXISTS badges (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id SERIAL PRIMARY KEY,
       name TEXT UNIQUE NOT NULL,
       description TEXT NOT NULL,
       icon TEXT NOT NULL,
       criteria_type TEXT NOT NULL,
       criteria_value INTEGER DEFAULT 0,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
     );
 
-    -- User badges
     CREATE TABLE IF NOT EXISTS user_badges (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id SERIAL PRIMARY KEY,
       user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
       badge_id INTEGER NOT NULL REFERENCES badges(id) ON DELETE CASCADE,
-      awarded_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      awarded_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
       UNIQUE(user_id, badge_id)
     );
 
-    -- Mentions
     CREATE TABLE IF NOT EXISTS mentions (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id SERIAL PRIMARY KEY,
       post_id INTEGER NOT NULL REFERENCES posts(id) ON DELETE CASCADE,
       mentioner_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
       mentioned_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
     );
 
-    -- Private messages
     CREATE TABLE IF NOT EXISTS private_messages (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id SERIAL PRIMARY KEY,
       sender_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
       receiver_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
       subject TEXT NOT NULL,
@@ -137,57 +231,52 @@ function initialize() {
       is_read INTEGER DEFAULT 0,
       sender_deleted INTEGER DEFAULT 0,
       receiver_deleted INTEGER DEFAULT 0,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
     );
 
-    -- Notifications
     CREATE TABLE IF NOT EXISTS notifications (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id SERIAL PRIMARY KEY,
       user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
       type TEXT NOT NULL,
       reference_id INTEGER NULL,
       reference_type TEXT NULL,
       message TEXT NOT NULL,
       is_read INTEGER DEFAULT 0,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
     );
 
-    -- Reports
     CREATE TABLE IF NOT EXISTS reports (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id SERIAL PRIMARY KEY,
       reporter_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
       post_id INTEGER NOT NULL REFERENCES posts(id) ON DELETE CASCADE,
       reason TEXT NOT NULL,
       status TEXT DEFAULT 'pending' CHECK(status IN ('pending', 'reviewed', 'resolved', 'dismissed')),
       resolved_by INTEGER NULL REFERENCES users(id),
       resolution_note TEXT NULL,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      resolved_at DATETIME NULL
+      created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+      resolved_at TIMESTAMPTZ NULL
     );
 
-    -- Moderation actions log
     CREATE TABLE IF NOT EXISTS mod_actions (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id SERIAL PRIMARY KEY,
       mod_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
       target_user_id INTEGER NULL REFERENCES users(id) ON DELETE SET NULL,
       target_post_id INTEGER NULL REFERENCES posts(id) ON DELETE SET NULL,
       action_type TEXT NOT NULL,
       reason TEXT,
       duration INTEGER NULL,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
     );
 
-    -- API keys
     CREATE TABLE IF NOT EXISTS api_keys (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id SERIAL PRIMARY KEY,
       user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
       key_hash TEXT UNIQUE NOT NULL,
       name TEXT NOT NULL,
-      last_used DATETIME NULL,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      last_used TIMESTAMPTZ NULL,
+      created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
     );
 
-    -- Indexes for performance
     CREATE INDEX IF NOT EXISTS idx_threads_category ON threads(category_id);
     CREATE INDEX IF NOT EXISTS idx_threads_author ON threads(author_id);
     CREATE INDEX IF NOT EXISTS idx_threads_last_post ON threads(last_post_at DESC);
@@ -204,26 +293,8 @@ function initialize() {
     CREATE INDEX IF NOT EXISTS idx_reports_status ON reports(status);
   `);
 
-  // Best-effort schema upgrades for existing databases
-  const addColumn = (table, columnDef) => {
-    try {
-      db.exec(`ALTER TABLE ${table} ADD COLUMN ${columnDef}`);
-    } catch (err) {
-      // Ignore if column already exists
-    }
-  };
-  addColumn('users', 'rank_override_title TEXT NULL');
-  addColumn('users', 'rank_override_color TEXT NULL');
-  addColumn('users', 'rank_override_reason TEXT NULL');
-  addColumn('users', 'rank_override_by INTEGER NULL REFERENCES users(id)');
-  addColumn('users', 'rank_override_at DATETIME NULL');
-
-  // Seed default badges
-  const badgeCount = db.prepare('SELECT COUNT(*) as count FROM badges').get();
+  const badgeCount = await db.get('SELECT COUNT(*)::int as count FROM badges');
   if (badgeCount.count === 0) {
-    const insertBadge = db.prepare(
-      'INSERT INTO badges (name, description, icon, criteria_type, criteria_value) VALUES (?, ?, ?, ?, ?)'
-    );
     const badges = [
       ['First Post', 'Made your first post!', '✏️', 'post_count', 1],
       ['Regular Poster', 'Made 10 posts', '📝', 'post_count', 10],
@@ -239,16 +310,37 @@ function initialize() {
       ['Veteran', 'Member for over 1 year', '🎖️', 'account_age_days', 365],
       ['Welcome Wagon', 'One of the first 10 members', '🎪', 'early_member', 10],
     ];
-    const insertMany = db.transaction(() => {
+
+    await transaction(async (tx) => {
       for (const b of badges) {
-        insertBadge.run(...b);
+        await tx.run(
+          'INSERT INTO badges (name, description, icon, criteria_type, criteria_value) VALUES (?, ?, ?, ?, ?)',
+          ...b
+        );
       }
     });
-    insertMany();
+  }
+
+  const badgeIconUpdates = [
+    ['First Post', '✏️'],
+    ['Regular Poster', '📝'],
+    ['Prolific Writer', '📚'],
+    ['First Thanks Given', '🤝'],
+    ['First Thanks Received', '⭐'],
+    ['Helpful', '🌟'],
+    ['Super Helpful', '💫'],
+    ['Legendary Helper', '🏆'],
+    ['Conversation Starter', '💡'],
+    ['Popular Thread', '🔥'],
+    ['Kindness Streak', '💖'],
+    ['Veteran', '🎖️'],
+    ['Welcome Wagon', '🎪'],
+  ];
+  for (const [name, icon] of badgeIconUpdates) {
+    await db.run('UPDATE badges SET icon = ? WHERE name = ?', icon, name);
   }
 }
 
-// Rank thresholds
 const RANKS = [
   { min: 0, title: 'Newcomer', color: '#6b7280' },
   { min: 5, title: 'Contributor', color: '#3b82f6' },
@@ -291,4 +383,14 @@ function isHighestRank(user) {
   return effective.title === RANKS[RANKS.length - 1].title;
 }
 
-module.exports = { db, initialize, getRank, getRankByTitle, getEffectiveRank, isHighestRank, RANKS };
+module.exports = {
+  db,
+  pool,
+  transaction,
+  initialize,
+  getRank,
+  getRankByTitle,
+  getEffectiveRank,
+  isHighestRank,
+  RANKS
+};

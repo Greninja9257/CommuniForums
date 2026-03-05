@@ -1,8 +1,8 @@
 <%- include('layout', { body: `
 <div class="home-hero">
   <h1>Welcome to CommuniForums</h1>
-  <p class="hero-subtitle">Share knowledge, build community, and keep it positive.</p>
-  <div class="positivity-banner">💡 ${positivityMessage}</div>
+  <p class="hero-subtitle">A focused discussion platform for clear questions and practical answers.</p>
+  <div class="positivity-banner">${featuredMessage}</div>
 </div>
 
 <div class="home-grid">
@@ -17,7 +17,7 @@
           <div class="empty-state">No categories yet.</div>
         ` : categories.map(c => `
           <a href="/forums/category/${c.id}" class="category-card">
-            <div class="category-icon">${c.icon || '💬'}</div>
+            <div class="category-icon">${(c.icon && c.icon.trim()) ? c.icon.trim() : c.name.charAt(0).toUpperCase()}</div>
             <div class="category-info">
               <h3>${c.name}</h3>
               ${c.description ? `<p>${c.description}</p>` : ''}
@@ -96,7 +96,7 @@
               <span class="leaderboard-name">${u.username}</span>
               <span class="leaderboard-badge" style="color: ${u.rank.color}">${u.rank.title}</span>
             </div>
-            <span class="leaderboard-thanks">⭐ ${u.thanks_received}</span>
+            <span class="leaderboard-thanks">${u.thanks_received} thanks</span>
           </a>
         `).join('')}
       </div>

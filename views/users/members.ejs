@@ -21,8 +21,8 @@
         ${m.role !== 'user' ? `<span class="role-badge role-${m.role}">${m.role}</span>` : ''}
         <span class="member-rank" style="color: ${m.rank.color}">${m.rank.title}</span>
         <div class="member-stats">
-          <span>⭐ ${m.thanks_received}</span>
-          <span>📝 ${m.post_count}</span>
+          <span>${m.thanks_received} thanks</span>
+          <span>${m.post_count} posts</span>
         </div>
       </div>
     </a>

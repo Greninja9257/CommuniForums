@@ -7,7 +7,7 @@
 
 <div class="page-header">
   <div>
-    <h1>${category.icon} ${category.name}</h1>
+    <h1>${category.name}</h1>
     ${category.description ? `<p>${category.description}</p>` : ''}
   </div>
   ${currentUser ? `<a href="/forums/new-thread/${category.id}" class="btn btn-primary">+ New Thread</a>` : ''}
@@ -16,7 +16,7 @@
 ${subcategories.length > 0 ? `
   <div class="subcategory-bar">
     ${subcategories.map(sub => `
-      <a href="/forums/category/${sub.id}" class="subcategory-chip">${sub.icon} ${sub.name}</a>
+      <a href="/forums/category/${sub.id}" class="subcategory-chip">${sub.name}</a>
     `).join('')}
   </div>
 ` : ''}
@@ -39,9 +39,9 @@ ${threads.length === 0 ? `
       <div class="thread-row ${t.is_pinned ? 'thread-pinned' : ''} ${t.is_locked ? 'thread-locked' : ''} ${t.is_solved ? 'thread-solved' : ''}">
         <div class="thread-topic">
           <div class="thread-badges">
-            ${t.is_pinned ? '<span class="thread-badge badge-pinned">📌 Pinned</span>' : ''}
-            ${t.is_locked ? '<span class="thread-badge badge-locked">🔒 Locked</span>' : ''}
-            ${t.is_solved ? '<span class="thread-badge badge-solved">✅ Solved</span>' : ''}
+            ${t.is_pinned ? '<span class="thread-badge badge-pinned">Pinned</span>' : ''}
+            ${t.is_locked ? '<span class="thread-badge badge-locked">Locked</span>' : ''}
+            ${t.is_solved ? '<span class="thread-badge badge-solved">Solved</span>' : ''}
           </div>
           <a href="/forums/thread/${t.id}" class="thread-title">${t.title}</a>
           <div class="thread-meta">

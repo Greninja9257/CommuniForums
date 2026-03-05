@@ -1,6 +1,6 @@
 <%- include('layout', { body: `
 <div class="page-header">
-  <h1>🔍 Search</h1>
+  <h1>Search</h1>
 </div>
 
 <div class="search-form-container">
@@ -73,7 +73,7 @@ ${q ? `
             <div class="member-info">
               <strong>${u.username}</strong>
               <span class="member-rank" style="color: ${u.rank.color}">${u.rank.title}</span>
-              <span>⭐ ${u.thanks_received} &middot; 📝 ${u.post_count}</span>
+              <span>${u.thanks_received} thanks &middot; ${u.post_count} posts</span>
             </div>
           </a>
         `).join('')}

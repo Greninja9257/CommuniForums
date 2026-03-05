@@ -1,6 +1,6 @@
 <%- include('../layout', { body: `
 <div class="page-header">
-  <h1>⚙️ Admin Dashboard</h1>
+  <h1>Admin Dashboard</h1>
 </div>
 
 <div class="admin-nav">
@@ -54,7 +54,7 @@
 
 <div class="admin-grid">
   <div class="section-card">
-    <h2>🚩 Pending Reports (${stats.pendingReports})</h2>
+    <h2>Pending Reports (${stats.pendingReports})</h2>
     ${recentReports.length === 0 ? '<p class="empty-state">No pending reports.</p>' : `
       <div class="report-list">
         ${recentReports.map(r => `
@@ -84,7 +84,7 @@
   </div>
 
   <div class="section-card">
-    <h2>📋 Recent Mod Actions</h2>
+    <h2>Recent Moderation Actions</h2>
     ${recentModActions.length === 0 ? '<p class="empty-state">No recent actions.</p>' : `
       <div class="mod-action-list">
         ${recentModActions.map(a => `

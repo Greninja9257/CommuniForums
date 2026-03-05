@@ -1,6 +1,6 @@
 <%- include('../layout', { body: `
 <div class="page-header">
-  <h1>⚙️ Manage Categories</h1>
+  <h1>Manage Categories</h1>
 </div>
 
 <div class="admin-nav">
@@ -23,8 +23,8 @@
       </div>
       <div class="form-row">
         <div class="form-group">
-          <label>Icon (emoji)</label>
-          <input type="text" name="icon" placeholder="💬" maxlength="4">
+          <label>Icon (optional)</label>
+          <input type="text" name="icon" placeholder="DB" maxlength="4">
         </div>
         <div class="form-group">
           <label>Display Order</label>
@@ -51,7 +51,7 @@
         ${categories.map(c => `
           <div class="category-admin-item">
             <div class="category-admin-info">
-              <span class="category-icon">${c.icon}</span>
+              <span class="category-icon">${(c.icon && c.icon.trim()) ? c.icon.trim() : c.name.charAt(0).toUpperCase()}</span>
               <div>
                 <strong>${c.name}</strong>
                 ${c.parent_id ? '<span class="subcategory-label">(subcategory)</span>' : ''}
@@ -91,7 +91,7 @@
       </div>
       <div class="form-row">
         <div class="form-group">
-          <label>Icon</label>
+          <label>Icon (optional)</label>
           <input type="text" name="icon" id="edit-cat-icon" maxlength="4">
         </div>
         <div class="form-group">

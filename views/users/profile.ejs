@@ -16,7 +16,7 @@
       </div>
     </div>
     ${currentUser && currentUser.id !== profileUser.id ? `
-      <a href="/messages/new?to=${profileUser.username}" class="btn btn-sm">✉️ Message</a>
+      <a href="/messages/new?to=${profileUser.username}" class="btn btn-sm">Message</a>
     ` : ''}
   </div>
 </div>
@@ -78,7 +78,7 @@
 
   <div class="profile-sidebar">
     <div class="section-card">
-      <h3>🏆 Badges (${badges.length})</h3>
+      <h3>Badges (${badges.length})</h3>
       ${badges.length === 0 ? '<p class="empty-state">No badges yet.</p>' : `
         <div class="badge-grid">
           ${badges.map(b => `
@@ -93,7 +93,7 @@
 
     ${profileUser.rank_override_title ? `
       <div class="section-card">
-        <h3>🎖️ Special Rank</h3>
+        <h3>Special Rank</h3>
         <p><strong>${profileUser.rank_override_title}</strong></p>
         ${profileUser.rank_override_reason ? `<p class="text-muted">Reason: ${profileUser.rank_override_reason}</p>` : ''}
         ${rankOverrideBy ? `<p class="text-muted">Granted by <a href="/users/profile/${rankOverrideBy.id}">${rankOverrideBy.username}</a></p>` : ''}
@@ -102,7 +102,7 @@
 
     ${canManageRanks ? `
       <div class="section-card">
-        <h3>🔐 Rank Management</h3>
+        <h3>Rank Management</h3>
         <form method="POST" action="/users/profile/${profileUser.id}/rank" class="settings-form">
           <div class="form-group">
             <label>Assign Rank</label>
@@ -128,7 +128,7 @@
     ` : ''}
 
     <div class="section-card">
-      <h3>📊 30-Day Activity</h3>
+      <h3>30-Day Activity</h3>
       <div class="mini-stats">
         <div class="mini-stat">
           <span class="mini-stat-value">${postsRecent}</span>
