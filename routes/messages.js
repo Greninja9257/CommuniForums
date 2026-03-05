@@ -43,9 +43,15 @@ router.post('/send', requireAuth, blockBanned, async (req, res, next) => {
   try {
     const { to, subject, content } = req.body;
 
-  if (!to || !subject || !content) {
+    if (!to || !subject || !content) {
       return res.render('messages/compose', {
         title: 'New Message', to, error: 'All fields are required.'
+      });
+    }
+    const msgScan = scanFields({ subject, content });
+    if (msgScan.flagged) {
+      return res.render('messages/compose', {
+        title: 'New Message', to, error: warningMessage(msgScan)
       });
     }
 
@@ -74,12 +80,6 @@ router.post('/send', requireAuth, blockBanned, async (req, res, next) => {
     res.redirect('/messages');
   } catch (error) {
     next(error);
-  }
-  const msgScan = scanFields({ subject, content });
-  if (msgScan.flagged) {
-    return res.render('messages/compose', {
-      title: 'New Message', to, error: warningMessage(msgScan)
-    });
   }
 });
 
