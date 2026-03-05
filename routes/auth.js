@@ -2,6 +2,7 @@ const express = require('express');
 const bcrypt = require('bcryptjs');
 const router = express.Router();
 const { db } = require('../database');
+const { scanFields, warningMessage } = require('../utils/profanity');
 
 router.get('/register', (req, res) => {
   if (res.locals.currentUser) return res.redirect('/');
@@ -20,6 +21,10 @@ router.post('/register', async (req, res, next) => {
     }
     if (!/^[a-zA-Z0-9_]+$/.test(username)) {
       return res.render('auth/register', { title: 'Register', error: 'Username can only contain letters, numbers, and underscores.' });
+    }
+    const usernameScan = scanFields({ username });
+    if (usernameScan.flagged) {
+      return res.render('auth/register', { title: 'Register', error: warningMessage(usernameScan) });
     }
     if (password.length < 6) {
       return res.render('auth/register', { title: 'Register', error: 'Password must be at least 6 characters.' });

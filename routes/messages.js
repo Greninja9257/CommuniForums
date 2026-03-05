@@ -3,6 +3,7 @@ const router = express.Router();
 const { db } = require('../database');
 const { requireAuth } = require('../middleware/auth');
 const { blockBanned } = require('../middleware/moderation');
+const { scanFields, warningMessage } = require('../utils/profanity');
 
 router.get('/', requireAuth, async (req, res, next) => {
   try {
@@ -42,7 +43,7 @@ router.post('/send', requireAuth, blockBanned, async (req, res, next) => {
   try {
     const { to, subject, content } = req.body;
 
-    if (!to || !subject || !content) {
+  if (!to || !subject || !content) {
       return res.render('messages/compose', {
         title: 'New Message', to, error: 'All fields are required.'
       });
@@ -73,6 +74,12 @@ router.post('/send', requireAuth, blockBanned, async (req, res, next) => {
     res.redirect('/messages');
   } catch (error) {
     next(error);
+  }
+  const msgScan = scanFields({ subject, content });
+  if (msgScan.flagged) {
+    return res.render('messages/compose', {
+      title: 'New Message', to, error: warningMessage(msgScan)
+    });
   }
 });
 

@@ -3,6 +3,7 @@ const bcrypt = require('bcryptjs');
 const router = express.Router();
 const { db, getRank, getEffectiveRank, getRankByTitle, isHighestRank, RANKS } = require('../database');
 const { requireAuth } = require('../middleware/auth');
+const { scanFields, warningMessage } = require('../utils/profanity');
 
 router.get('/profile/:id', async (req, res, next) => {
   try {
@@ -82,6 +83,10 @@ router.post('/settings', requireAuth, async (req, res, next) => {
 
     if (bio !== undefined) {
       const cleanBio = (bio || '').substring(0, 500);
+      const bioScan = scanFields({ bio: cleanBio });
+      if (bioScan.flagged) {
+        return res.render('users/settings', { title: 'Settings', error: warningMessage(bioScan), success: null });
+      }
       await db.prepare('UPDATE users SET bio = ? WHERE id = ?').run(cleanBio, res.locals.currentUser.id);
     }
 

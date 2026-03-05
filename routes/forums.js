@@ -6,6 +6,7 @@ const { blockBanned, checkAutoBan } = require('../middleware/moderation');
 const { marked } = require('marked');
 const { JSDOM } = require('jsdom');
 const createDOMPurify = require('dompurify');
+const { scanFields, warningMessage } = require('../utils/profanity');
 
 const window = new JSDOM('').window;
 const DOMPurify = createDOMPurify(window);
@@ -108,6 +109,11 @@ router.post('/categories/create', requireAuth, blockBanned, async (req, res, nex
 
     if (name.length < 3 || name.length > 60) {
       req.flash('error', 'Category name must be between 3 and 60 characters.');
+      return res.redirect('/forums');
+    }
+    const categoryScan = scanFields({ name, description });
+    if (categoryScan.flagged) {
+      req.flash('error', warningMessage(categoryScan));
       return res.redirect('/forums');
     }
 
@@ -277,6 +283,14 @@ router.post('/new-thread/:categoryId', requireAuth, blockBanned, async (req, res
         error: 'Title (min 3 chars) and content are required.'
       });
     }
+    const threadScan = scanFields({ title, content });
+    if (threadScan.flagged) {
+      return res.render('forums/new-thread', {
+        title: 'New Thread',
+        category,
+        error: warningMessage(threadScan)
+      });
+    }
 
     const threadId = await transaction(async (tx) => {
       const threadResult = await tx.prepare(
@@ -318,6 +332,11 @@ router.post('/thread/:id/reply', requireAuth, blockBanned, async (req, res, next
     }
     if (!content || content.trim().length < 1) {
       req.flash('error', 'Reply content is required.');
+      return res.redirect(`/forums/thread/${thread.id}`);
+    }
+    const replyScan = scanFields({ content });
+    if (replyScan.flagged) {
+      req.flash('error', warningMessage(replyScan));
       return res.redirect(`/forums/thread/${thread.id}`);
     }
 
@@ -376,6 +395,10 @@ router.post('/post/:id/edit', requireAuth, blockBanned, async (req, res, next) =
     const { content } = req.body;
     if (!content || content.trim().length < 1) {
       return res.status(400).json({ error: 'Content required' });
+    }
+    const editScan = scanFields({ content });
+    if (editScan.flagged) {
+      return res.status(400).json({ error: warningMessage(editScan) });
     }
 
     await db.prepare('UPDATE posts SET content = ?, is_edited = 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?')

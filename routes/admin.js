@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { db, getRank, getEffectiveRank } = require('../database');
 const { requireAuth, requireMod } = require('../middleware/auth');
+const { scanFields, warningMessage } = require('../utils/profanity');
 
 router.use(requireAuth, requireMod);
 
@@ -158,6 +159,11 @@ router.get('/categories', async (req, res, next) => {
 router.post('/categories/create', async (req, res, next) => {
   try {
     const { name, description, icon, display_order, parent_id } = req.body;
+    const categoryScan = scanFields({ name, description });
+    if (categoryScan.flagged) {
+      req.flash('error', warningMessage(categoryScan));
+      return res.redirect('/admin/categories');
+    }
     await db.prepare(
       'INSERT INTO categories (name, description, icon, display_order, parent_id) VALUES (?, ?, ?, ?, ?)'
     ).run(name, description || '', (icon || '').trim(), parseInt(display_order, 10) || 0, parent_id || null);
@@ -172,6 +178,11 @@ router.post('/categories/create', async (req, res, next) => {
 router.post('/categories/:id/edit', async (req, res, next) => {
   try {
     const { name, description, icon, display_order } = req.body;
+    const categoryScan = scanFields({ name, description });
+    if (categoryScan.flagged) {
+      req.flash('error', warningMessage(categoryScan));
+      return res.redirect('/admin/categories');
+    }
     await db.prepare(
       'UPDATE categories SET name = ?, description = ?, icon = ?, display_order = ? WHERE id = ?'
     ).run(name, description || '', (icon || '').trim(), parseInt(display_order, 10) || 0, req.params.id);

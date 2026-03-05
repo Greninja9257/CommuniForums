@@ -6,7 +6,8 @@
   "scripts": {
     "start": "node server.js",
     "seed": "node seed.js",
-    "dev": "node --watch server.js"
+    "dev": "node --watch server.js",
+    "profanity:refresh": "node scripts/build_profanity_words.js"
   },
   "keywords": [
     "forum",
