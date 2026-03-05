@@ -68,6 +68,19 @@
           <span class="post-number">#${(page - 1) * 15 + index + 1}</span>
         </div>
         <div class="post-content">${post.content_html}</div>
+        ${post.author_id === currentUser.id || ['moderator', 'admin'].includes(currentUser.role) ? `
+          <form method="POST" action="/forums/post/${post.id}/edit" class="post-inline-edit" id="post-edit-${post.id}">
+            <div class="form-group">
+              <label for="edit-content-${post.id}">Edit Content</label>
+              <textarea id="edit-content-${post.id}" name="content" rows="12" required>${escapeHtml(post.content || '')}</textarea>
+              <div class="form-help">Markdown is supported.</div>
+            </div>
+            <div class="post-inline-edit-actions">
+              <button type="submit" class="btn btn-primary">Save Changes</button>
+              <button type="button" class="btn" onclick="cancelEditPost(${post.id})">Cancel</button>
+            </div>
+          </form>
+        ` : ''}
         <div class="post-actions">
           ${currentUser ? `
             <div class="post-action-group">
@@ -95,7 +108,7 @@
             </div>
             <div class="post-action-group">
               ${post.author_id === currentUser.id || ['moderator', 'admin'].includes(currentUser.role) ? `
-                <button class="btn-action" onclick="editPost(${post.id})">Edit</button>
+                <button class="btn-action btn-edit-post" data-post-id="${post.id}" onclick="editPost(${post.id})">Edit</button>
                 <form method="POST" action="/forums/post/${post.id}/delete" style="display:inline"
                   onsubmit="return confirm('Are you sure you want to delete this post?')">
                   <button class="btn-action btn-danger">Delete</button>
@@ -190,22 +203,6 @@ ${currentUser && !thread.is_locked ? `
         <textarea name="reason" id="td-reason" rows="2" required placeholder="Specify reason..." class="mt-2"></textarea>
       </div>
       <button type="submit" class="btn btn-danger">Submit</button>
-    </form>
-  </div>
-</div>
-
-<!-- Edit Post Modal -->
-<div class="modal" id="edit-modal">
-  <div class="modal-content">
-    <div class="modal-header">
-      <h3>Edit Post</h3>
-      <button class="modal-close" onclick="closeModal('edit-modal')">&times;</button>
-    </div>
-    <form id="edit-form" method="POST">
-      <div class="form-group">
-        <textarea name="content" id="edit-content" rows="6" required></textarea>
-      </div>
-      <button type="submit" class="btn btn-primary">Save Changes</button>
     </form>
   </div>
 </div>

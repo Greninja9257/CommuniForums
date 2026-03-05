@@ -541,6 +541,33 @@ input, textarea, select, button { font-family: inherit; font-size: inherit; }
 .post-content ul, .post-content ol { margin-left: 24px; margin-bottom: 12px; }
 .post-content img { max-width: 100%; border-radius: var(--radius); }
 .post-content h1, .post-content h2, .post-content h3 { margin-top: 16px; margin-bottom: 8px; }
+.post-content.is-hidden { display: none; }
+
+.post-inline-edit {
+  display: none;
+  margin-top: 8px;
+  margin-bottom: 14px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--gray-50);
+}
+.post-inline-edit.show { display: block; }
+.post-inline-edit textarea {
+  width: 100%;
+  min-height: 260px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  resize: vertical;
+  line-height: 1.6;
+}
+.post-inline-edit textarea:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+}
+.post-inline-edit-actions { display: flex; gap: 10px; }
 
 .post-actions {
   display: flex;
@@ -743,7 +770,16 @@ input, textarea, select, button { font-family: inherit; font-size: inherit; }
 .message-detail-header h2 { margin-bottom: 8px; }
 .message-detail-meta { font-size: 0.85rem; color: var(--text-secondary); display: flex; gap: 12px; flex-wrap: wrap; }
 .message-detail-body { line-height: 1.7; padding-bottom: 20px; min-height: 100px; white-space: pre-wrap; }
-.message-detail-actions { display: flex; gap: 10px; padding-top: 16px; border-top: 1px solid var(--gray-100); }
+.message-detail-actions {
+  display: flex;
+  gap: 10px;
+  padding-top: 16px;
+  border-top: 1px solid var(--gray-100);
+  align-items: center;
+  flex-wrap: wrap;
+}
+.message-delete-form { display: inline-flex; margin: 0; }
+.message-delete-form .btn { height: 100%; }
 
 /* --- Notifications --- */
 .notification-list {

@@ -129,16 +129,40 @@ document.addEventListener('DOMContentLoaded', () => {
 function editPost(postId) {
   const postCard = document.getElementById(`post-${postId}`);
   if (!postCard) return;
-
   const contentEl = postCard.querySelector('.post-content');
-  // Get raw content from a data attribute or parse from HTML
-  const currentContent = contentEl.innerText;
+  const form = document.getElementById(`post-edit-${postId}`);
+  const editBtn = postCard.querySelector(`.btn-edit-post[data-post-id="${postId}"]`);
+  if (!contentEl || !form) return;
 
-  const editContent = document.getElementById('edit-content');
-  const editForm = document.getElementById('edit-form');
-  editContent.value = currentContent;
-  editForm.action = `/forums/post/${postId}/edit`;
-  openModal('edit-modal');
+  const isOpen = form.classList.contains('show');
+  if (isOpen) {
+    form.classList.remove('show');
+    contentEl.classList.remove('is-hidden');
+    if (editBtn) editBtn.textContent = 'Edit';
+    return;
+  }
+
+  form.classList.add('show');
+  contentEl.classList.add('is-hidden');
+  if (editBtn) editBtn.textContent = 'Close';
+
+  const textarea = form.querySelector('textarea[name="content"]');
+  if (textarea) {
+    if (!textarea.dataset.original) textarea.dataset.original = textarea.value;
+    textarea.focus();
+    textarea.selectionStart = textarea.value.length;
+    textarea.selectionEnd = textarea.value.length;
+  }
+}
+
+function cancelEditPost(postId) {
+  const form = document.getElementById(`post-edit-${postId}`);
+  if (!form) return;
+  const textarea = form.querySelector('textarea[name="content"]');
+  if (textarea && textarea.dataset.original !== undefined) {
+    textarea.value = textarea.dataset.original;
+  }
+  editPost(postId);
 }
 
 // ---- Quote Post ----

@@ -386,26 +386,27 @@ router.post('/thread/:id/reply', requireAuth, blockBanned, async (req, res, next
 router.post('/post/:id/edit', requireAuth, blockBanned, async (req, res, next) => {
   try {
     const post = await db.prepare('SELECT * FROM posts WHERE id = ?').get(req.params.id);
-    if (!post) return res.status(404).json({ error: 'Post not found' });
+    if (!post) return res.status(404).render('error', { title: 'Not Found', message: 'Post not found' });
 
     if (post.author_id !== res.locals.currentUser.id && !['moderator', 'admin'].includes(res.locals.currentUser.role)) {
-      return res.status(403).json({ error: 'Not authorized' });
+      return res.status(403).render('error', { title: 'Forbidden', message: 'Not authorized' });
     }
 
     const { content } = req.body;
     if (!content || content.trim().length < 1) {
-      return res.status(400).json({ error: 'Content required' });
+      req.flash('error', 'Content required.');
+      return res.redirect(`/forums/thread/${post.thread_id}`);
     }
     const editScan = scanFields({ content });
     if (editScan.flagged) {
-      return res.status(400).json({ error: warningMessage(editScan) });
+      req.flash('error', warningMessage(editScan));
+      return res.redirect(`/forums/thread/${post.thread_id}`);
     }
 
     await db.prepare('UPDATE posts SET content = ?, is_edited = 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
       .run(content.trim(), post.id);
 
-    const thread = await db.prepare('SELECT id FROM threads WHERE id = ?').get(post.thread_id);
-    res.redirect(`/forums/thread/${thread.id}`);
+    res.redirect(`/forums/thread/${post.thread_id}`);
   } catch (error) {
     next(error);
   }

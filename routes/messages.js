@@ -41,14 +41,14 @@ router.get('/new', requireAuth, blockBanned, (req, res) => {
 
 router.post('/send', requireAuth, blockBanned, async (req, res, next) => {
   try {
-    const { to, subject, content } = req.body;
+    const { to, content } = req.body;
 
-    if (!to || !subject || !content) {
+    if (!to || !content) {
       return res.render('messages/compose', {
-        title: 'New Message', to, error: 'All fields are required.'
+        title: 'New Message', to, error: 'Recipient and message are required.'
       });
     }
-    const msgScan = scanFields({ subject, content });
+    const msgScan = scanFields({ content });
     if (msgScan.flagged) {
       return res.render('messages/compose', {
         title: 'New Message', to, error: warningMessage(msgScan)
@@ -69,12 +69,12 @@ router.post('/send', requireAuth, blockBanned, async (req, res, next) => {
 
     await db.prepare(
       'INSERT INTO private_messages (sender_id, receiver_id, subject, content) VALUES (?, ?, ?, ?)'
-    ).run(res.locals.currentUser.id, recipient.id, subject.trim(), content.trim());
+    ).run(res.locals.currentUser.id, recipient.id, '', content.trim());
 
     await db.prepare(
       'INSERT INTO notifications (user_id, type, reference_id, reference_type, message) VALUES (?, ?, ?, ?, ?)'
     ).run(recipient.id, 'pm', res.locals.currentUser.id, 'user',
-      `New message from ${res.locals.currentUser.username}: "${subject.trim()}"`);
+      `New message from ${res.locals.currentUser.username}`);
 
     req.flash('success', 'Message sent!');
     res.redirect('/messages');
@@ -100,7 +100,7 @@ router.get('/:id', requireAuth, async (req, res, next) => {
       await db.prepare('UPDATE private_messages SET is_read = 1 WHERE id = ?').run(message.id);
     }
 
-    res.render('messages/conversation', { title: message.subject, message });
+    res.render('messages/conversation', { title: 'Message', message });
   } catch (error) {
     next(error);
   }

@@ -24,7 +24,6 @@ ${messages.length === 0 ? `
             <strong>${m.other_username}</strong>
             <span class="message-time">${formatDate(m.created_at)}</span>
           </div>
-          <div class="message-subject">${m.subject}</div>
           <div class="message-preview">${truncate(m.content, 100)}</div>
         </div>
         ${!m.is_read && tab === 'inbox' ? '<span class="unread-dot"></span>' : ''}
