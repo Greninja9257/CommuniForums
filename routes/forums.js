@@ -142,6 +142,19 @@ async function ensureEngagementTables() {
   engagementTablesReady = true;
 }
 
+async function withEngagementTables(queryFn) {
+  try {
+    return await queryFn();
+  } catch (error) {
+    if (error && (error.code === '42P01' || String(error.message || '').includes('does not exist'))) {
+      engagementTablesReady = false;
+      await ensureEngagementTables();
+      return queryFn();
+    }
+    throw error;
+  }
+}
+
 router.get('/', async (req, res, next) => {
   try {
     const categories = await db.prepare(`
@@ -298,9 +311,9 @@ router.get('/thread/:id', async (req, res, next) => {
     `).all(thread.id, perPage, offset);
 
     if (res.locals.currentUser) {
-      thread.userSubscribed = !!(await db.prepare(
+      thread.userSubscribed = !!(await withEngagementTables(() => db.prepare(
         'SELECT 1 FROM thread_subscriptions WHERE thread_id = ? AND user_id = ?'
-      ).get(thread.id, res.locals.currentUser.id));
+      ).get(thread.id, res.locals.currentUser.id)));
     } else {
       thread.userSubscribed = false;
     }
@@ -322,9 +335,9 @@ router.get('/thread/:id', async (req, res, next) => {
         post.userThanked = !!(await db.prepare(
           'SELECT 1 FROM thanks WHERE post_id = ? AND giver_id = ?'
         ).get(post.id, res.locals.currentUser.id));
-        post.userSaved = !!(await db.prepare(
+        post.userSaved = !!(await withEngagementTables(() => db.prepare(
           'SELECT 1 FROM saved_posts WHERE post_id = ? AND user_id = ?'
-        ).get(post.id, res.locals.currentUser.id));
+        ).get(post.id, res.locals.currentUser.id)));
       }
     }
 
@@ -459,9 +472,9 @@ router.post('/thread/:id/reply', requireAuth, blockBanned, async (req, res, next
           `${res.locals.currentUser.username} replied to your thread "${thread.title}"`);
       }
 
-      const subscribers = await tx.prepare(
+      const subscribers = await withEngagementTables(() => tx.prepare(
         'SELECT user_id FROM thread_subscriptions WHERE thread_id = ? AND user_id <> ?'
-      ).all(thread.id, res.locals.currentUser.id);
+      ).all(thread.id, res.locals.currentUser.id));
       for (const sub of subscribers) {
         await tx.prepare(
           'INSERT INTO notifications (user_id, type, reference_id, reference_type, message) VALUES (?, ?, ?, ?, ?)'
@@ -602,19 +615,19 @@ router.post('/post/:id/save', requireAuth, blockBanned, async (req, res, next) =
     const post = await db.prepare('SELECT id FROM posts WHERE id = ?').get(req.params.id);
     if (!post) return res.status(404).json({ error: 'Post not found' });
 
-    const existing = await db.prepare(
+    const existing = await withEngagementTables(() => db.prepare(
       'SELECT id FROM saved_posts WHERE user_id = ? AND post_id = ?'
-    ).get(res.locals.currentUser.id, post.id);
+    ).get(res.locals.currentUser.id, post.id));
 
     if (existing) {
-      await db.prepare('DELETE FROM saved_posts WHERE user_id = ? AND post_id = ?')
-        .run(res.locals.currentUser.id, post.id);
+      await withEngagementTables(() => db.prepare('DELETE FROM saved_posts WHERE user_id = ? AND post_id = ?')
+        .run(res.locals.currentUser.id, post.id));
       return res.json({ saved: false });
     }
 
-    await db.prepare(
+    await withEngagementTables(() => db.prepare(
       'INSERT INTO saved_posts (user_id, post_id) VALUES (?, ?) ON CONFLICT (user_id, post_id) DO NOTHING'
-    ).run(res.locals.currentUser.id, post.id);
+    ).run(res.locals.currentUser.id, post.id));
     return res.json({ saved: true });
   } catch (error) {
     next(error);
@@ -627,19 +640,19 @@ router.post('/thread/:id/subscribe', requireAuth, blockBanned, async (req, res, 
     const thread = await db.prepare('SELECT id FROM threads WHERE id = ?').get(req.params.id);
     if (!thread) return res.status(404).json({ error: 'Thread not found' });
 
-    const existing = await db.prepare(
+    const existing = await withEngagementTables(() => db.prepare(
       'SELECT id FROM thread_subscriptions WHERE user_id = ? AND thread_id = ?'
-    ).get(res.locals.currentUser.id, thread.id);
+    ).get(res.locals.currentUser.id, thread.id));
 
     if (existing) {
-      await db.prepare('DELETE FROM thread_subscriptions WHERE user_id = ? AND thread_id = ?')
-        .run(res.locals.currentUser.id, thread.id);
+      await withEngagementTables(() => db.prepare('DELETE FROM thread_subscriptions WHERE user_id = ? AND thread_id = ?')
+        .run(res.locals.currentUser.id, thread.id));
       return res.json({ subscribed: false });
     }
 
-    await db.prepare(
+    await withEngagementTables(() => db.prepare(
       'INSERT INTO thread_subscriptions (user_id, thread_id) VALUES (?, ?) ON CONFLICT (user_id, thread_id) DO NOTHING'
-    ).run(res.locals.currentUser.id, thread.id);
+    ).run(res.locals.currentUser.id, thread.id));
     return res.json({ subscribed: true });
   } catch (error) {
     next(error);
