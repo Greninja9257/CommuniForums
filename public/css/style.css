@@ -660,6 +660,22 @@ input, textarea, select, button { font-family: inherit; font-size: inherit; }
   outline: none;
   box-shadow: inset 0 0 0 2px rgba(99, 102, 241, 0.15);
 }
+.rich-editor textarea[data-rich-editor] {
+  width: 100%;
+  min-height: 220px;
+  padding: 12px 14px;
+  border: 0;
+  border-top: 1px solid var(--gray-100);
+  font-family: inherit;
+  font-size: 0.95rem;
+  line-height: 1.6;
+  resize: none;
+  overflow: hidden;
+}
+.rich-editor textarea[data-rich-editor]:focus {
+  outline: none;
+  box-shadow: inset 0 0 0 2px rgba(99, 102, 241, 0.15);
+}
 .rich-editor-visual > *:first-child { margin-top: 0; }
 .rich-editor-visual > *:last-child { margin-bottom: 0; }
 .rich-editor .btn.btn-sm { line-height: 1.2; }

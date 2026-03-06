@@ -91,6 +91,13 @@ function initRichEditors() {
     let mode = 'visual';
     textarea.classList.add('rich-editor-markdown-hidden');
 
+    const autoResizeMarkdown = () => {
+      textarea.style.height = 'auto';
+      textarea.style.height = `${Math.max(220, textarea.scrollHeight)}px`;
+    };
+    textarea.addEventListener('input', autoResizeMarkdown);
+    autoResizeMarkdown();
+
     const setMode = (nextMode) => {
       mode = nextMode;
       const visualBtn = controls.querySelector('[data-mode="visual"]');
@@ -108,6 +115,7 @@ function initRichEditors() {
         visual.style.display = 'none';
         mdBtn.classList.add('btn-primary');
         visualBtn.classList.remove('btn-primary');
+        autoResizeMarkdown();
       }
     };
 
