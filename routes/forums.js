@@ -294,6 +294,7 @@ router.get('/thread/:id', async (req, res, next) => {
     await db.prepare('UPDATE threads SET view_count = view_count + 1 WHERE id = ?').run(thread.id);
 
     const totalPosts = (await db.prepare('SELECT COUNT(*)::int as c FROM posts WHERE thread_id = ?').get(thread.id)).c;
+    const firstPost = await db.prepare('SELECT id FROM posts WHERE thread_id = ? ORDER BY created_at ASC LIMIT 1').get(thread.id);
     const totalPages = Math.ceil(totalPosts / perPage);
 
     const posts = await db.prepare(`
@@ -348,6 +349,7 @@ router.get('/thread/:id', async (req, res, next) => {
       page,
       totalPages,
       totalPosts,
+      firstPostId: firstPost ? firstPost.id : null,
       getRank,
       threadUserSubscribed: thread.userSubscribed
     });
@@ -550,9 +552,8 @@ router.post('/post/:id/delete', requireAuth, async (req, res, next) => {
 
     const firstPost = await db.prepare('SELECT id FROM posts WHERE thread_id = ? ORDER BY created_at ASC LIMIT 1').get(post.thread_id);
     if (firstPost && firstPost.id === post.id) {
-      await db.prepare('DELETE FROM threads WHERE id = ?').run(post.thread_id);
-      req.flash('success', 'Thread deleted.');
-      return res.redirect(`/forums/category/${thread.category_id}`);
+      req.flash('error', 'Use the "Delete Thread" button in the thread header to delete the whole thread.');
+      return res.redirect(`/forums/thread/${post.thread_id}`);
     }
 
     await db.prepare('DELETE FROM posts WHERE id = ?').run(post.id);
@@ -561,6 +562,47 @@ router.post('/post/:id/delete', requireAuth, async (req, res, next) => {
 
     req.flash('success', 'Post deleted.');
     res.redirect(`/forums/thread/${post.thread_id}`);
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post('/thread/:id/delete', requireAuth, async (req, res, next) => {
+  try {
+    const thread = await db.prepare('SELECT * FROM threads WHERE id = ?').get(req.params.id);
+    if (!thread) {
+      return res.status(404).render('error', { title: 'Not Found', message: 'Thread not found' });
+    }
+
+    if (thread.author_id !== res.locals.currentUser.id && !['moderator', 'admin'].includes(res.locals.currentUser.role)) {
+      return res.status(403).render('error', { title: 'Forbidden', message: 'Not authorized' });
+    }
+
+    await transaction(async (tx) => {
+      const postCounts = await tx.prepare(
+        'SELECT author_id, COUNT(*)::int as c FROM posts WHERE thread_id = ? GROUP BY author_id'
+      ).all(thread.id);
+      const totalPosts = postCounts.reduce((sum, row) => sum + (row.c || 0), 0);
+
+      for (const row of postCounts) {
+        await tx.prepare(
+          'UPDATE users SET post_count = GREATEST(post_count - ?, 0) WHERE id = ?'
+        ).run(row.c || 0, row.author_id);
+      }
+
+      await tx.prepare(
+        'UPDATE users SET thread_count = GREATEST(thread_count - 1, 0) WHERE id = ?'
+      ).run(thread.author_id);
+
+      await tx.prepare(
+        'UPDATE categories SET thread_count = GREATEST(thread_count - 1, 0), post_count = GREATEST(post_count - ?, 0) WHERE id = ?'
+      ).run(totalPosts, thread.category_id);
+
+      await tx.prepare('DELETE FROM threads WHERE id = ?').run(thread.id);
+    });
+
+    req.flash('success', 'Thread deleted.');
+    return res.redirect(`/forums/category/${thread.category_id}`);
   } catch (error) {
     next(error);
   }
