@@ -9,6 +9,7 @@
   <div>
     <h1>${category.name}</h1>
     ${category.description ? `<p>${category.description}</p>` : ''}
+    ${isAggregateCategory ? `<p class="subcategory-label">This section includes threads from all sub-sections below.</p>` : ''}
   </div>
   ${currentUser ? `<a href="/forums/new-thread/${category.id}" class="btn btn-primary">+ New Thread</a>` : ''}
 </div>
@@ -58,6 +59,7 @@ ${threads.length === 0 ? `
             ${t.is_pinned ? '<span class="thread-badge badge-pinned">Pinned</span>' : ''}
             ${t.is_locked ? '<span class="thread-badge badge-locked">Locked</span>' : ''}
             ${t.is_solved ? '<span class="thread-badge badge-solved">Solved</span>' : ''}
+            ${t.thread_category_id !== category.id ? `<span class="thread-badge">${t.thread_category_name}</span>` : ''}
           </div>
           <a href="/forums/thread/${t.id}" class="thread-title">${t.title}</a>
           <div class="thread-meta">

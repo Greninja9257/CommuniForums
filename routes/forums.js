@@ -170,6 +170,29 @@ router.get('/', async (req, res, next) => {
     const topLevel = categories.filter(c => !c.parent_id);
     for (const cat of topLevel) {
       cat.subcategories = categories.filter(c => c.parent_id === cat.id);
+      const categoryIds = [cat.id, ...cat.subcategories.map(s => s.id)];
+      const inPlaceholders = categoryIds.map(() => '?').join(', ');
+
+      const aggregate = await db.prepare(`
+        SELECT
+          (SELECT COUNT(*)::int FROM threads t WHERE t.category_id IN (${inPlaceholders})) as thread_count,
+          (SELECT COUNT(*)::int FROM posts p JOIN threads t ON p.thread_id = t.id WHERE t.category_id IN (${inPlaceholders})) as post_count
+      `).get(...categoryIds, ...categoryIds);
+
+      const latest = await db.prepare(`
+        SELECT t.id, t.title, u.username as latest_poster
+        FROM threads t
+        LEFT JOIN users u ON u.id = t.last_post_by
+        WHERE t.category_id IN (${inPlaceholders})
+        ORDER BY t.last_post_at DESC
+        LIMIT 1
+      `).get(...categoryIds);
+
+      cat.thread_count = aggregate?.thread_count || 0;
+      cat.post_count = aggregate?.post_count || 0;
+      cat.latest_thread_id = latest?.id || null;
+      cat.latest_thread_title = latest?.title || null;
+      cat.latest_poster = latest?.latest_poster || null;
     }
 
     res.render('forums/categories', { title: 'Forums', categories: topLevel });
@@ -245,7 +268,10 @@ router.get('/category/:id', async (req, res, next) => {
       ORDER BY c.display_order
     `).all(category.id);
 
-    const totalThreads = (await db.prepare('SELECT COUNT(*)::int as c FROM threads WHERE category_id = ?').get(category.id)).c;
+    const categoryIds = [category.id, ...subcategories.map(s => s.id)];
+    const inPlaceholders = categoryIds.map(() => '?').join(', ');
+
+    const totalThreads = (await db.prepare(`SELECT COUNT(*)::int as c FROM threads WHERE category_id IN (${inPlaceholders})`).get(...categoryIds)).c;
     const totalPages = Math.ceil(totalThreads / perPage);
 
     const orderBySql = sort === 'new'
@@ -256,15 +282,17 @@ router.get('/category/:id', async (req, res, next) => {
 
     const threads = await db.prepare(`
       SELECT t.*, u.username as author_name, u.avatar as author_avatar,
+        c.id as thread_category_id, c.name as thread_category_name,
         lu.username as last_poster_name,
         (SELECT COUNT(*)::int FROM posts WHERE thread_id = t.id) - 1 as reply_count
       FROM threads t
       JOIN users u ON t.author_id = u.id
+      JOIN categories c ON c.id = t.category_id
       LEFT JOIN users lu ON t.last_post_by = lu.id
-      WHERE t.category_id = ?
+      WHERE t.category_id IN (${inPlaceholders})
       ORDER BY t.is_pinned DESC, ${orderBySql}
       LIMIT ? OFFSET ?
-    `).all(category.id, perPage, offset);
+    `).all(...categoryIds, perPage, offset);
 
     res.render('forums/category', {
       title: category.name,
@@ -274,7 +302,8 @@ router.get('/category/:id', async (req, res, next) => {
       page,
       totalPages,
       totalThreads,
-      sort
+      sort,
+      isAggregateCategory: subcategories.length > 0
     });
   } catch (error) {
     next(error);

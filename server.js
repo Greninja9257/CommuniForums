@@ -155,18 +155,27 @@ async function start() {
 
   app.get('/', async (req, res, next) => {
     try {
-      const categories = await db.all(`
+      const allCategories = await db.all(`
         SELECT c.*,
           (SELECT COUNT(*)::int FROM threads WHERE category_id = c.id) as thread_count,
           (SELECT COUNT(*)::int FROM posts p JOIN threads t ON p.thread_id = t.id WHERE t.category_id = c.id) as post_count
-        FROM categories c WHERE c.parent_id IS NULL ORDER BY c.display_order
+        FROM categories c ORDER BY c.display_order
       `);
+      const categories = allCategories.filter(c => !c.parent_id);
 
       for (const cat of categories) {
-        cat.subcategories = await db.all(
-          'SELECT * FROM categories WHERE parent_id = ? ORDER BY display_order',
-          cat.id
-        );
+        cat.subcategories = allCategories.filter(c => c.parent_id === cat.id);
+        const categoryIds = [cat.id, ...cat.subcategories.map(s => s.id)];
+        const inPlaceholders = categoryIds.map(() => '?').join(', ');
+
+        const aggregate = await db.get(`
+          SELECT
+            (SELECT COUNT(*)::int FROM threads t WHERE t.category_id IN (${inPlaceholders})) as thread_count,
+            (SELECT COUNT(*)::int FROM posts p JOIN threads t ON p.thread_id = t.id WHERE t.category_id IN (${inPlaceholders})) as post_count
+        `, ...categoryIds, ...categoryIds);
+
+        cat.thread_count = aggregate?.thread_count || 0;
+        cat.post_count = aggregate?.post_count || 0;
       }
 
       const stats = {
