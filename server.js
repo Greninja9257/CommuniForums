@@ -14,14 +14,10 @@ async function start() {
   let dbReady = false;
 
   function isLikelyInternalHealthProbe(req) {
-    if (req.method !== 'GET' || req.path !== '/') return false;
+    if (!['GET', 'HEAD'].includes(req.method) || req.path !== '/') return false;
     const remote = String(req.socket?.remoteAddress || '');
-    const ua = String(req.get('user-agent') || '').toLowerCase();
-    const accept = String(req.get('accept') || '').toLowerCase();
     const isLoopback = remote.includes('127.0.0.1') || remote.includes('::1');
-    const isProbeUa = ua.includes('health') || ua.includes('kube') || ua.includes('go-http-client');
-    const isGenericAccept = accept === '*/*' || accept === '';
-    return isLoopback && (isProbeUa || isGenericAccept);
+    return isLoopback;
   }
 
   app.set('view engine', 'ejs');
