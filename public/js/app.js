@@ -1,4 +1,155 @@
 // CommuniForums - Client-Side JavaScript
+window.richEditors = window.richEditors || {};
+
+function escapeHtmlText(value) {
+  return String(value || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
+function markdownToHtml(markdown) {
+  let html = escapeHtmlText(markdown || '');
+  html = html.replace(/^### (.*)$/gm, '<h3>$1</h3>');
+  html = html.replace(/^## (.*)$/gm, '<h2>$1</h2>');
+  html = html.replace(/^# (.*)$/gm, '<h1>$1</h1>');
+  html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+  html = html.replace(/\*(.+?)\*/g, '<em>$1</em>');
+  html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
+  html = html.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
+  html = html.replace(/^> (.*)$/gm, '<blockquote>$1</blockquote>');
+  html = html.replace(/^- (.*)$/gm, '<li>$1</li>');
+  html = html.replace(/(<li>.*<\/li>)/gs, '<ul>$1</ul>');
+  html = html.replace(/\n/g, '<br>');
+  return html;
+}
+
+function htmlToMarkdown(container) {
+  function walk(node) {
+    if (!node) return '';
+    if (node.nodeType === Node.TEXT_NODE) return node.nodeValue || '';
+    if (node.nodeType !== Node.ELEMENT_NODE) return '';
+
+    const tag = node.tagName.toLowerCase();
+    const children = Array.from(node.childNodes).map(walk).join('');
+    if (tag === 'strong' || tag === 'b') return `**${children}**`;
+    if (tag === 'em' || tag === 'i') return `*${children}*`;
+    if (tag === 'code') return `\`${children}\``;
+    if (tag === 'a') return `[${children}](${node.getAttribute('href') || ''})`;
+    if (tag === 'h1') return `# ${children}\n\n`;
+    if (tag === 'h2') return `## ${children}\n\n`;
+    if (tag === 'h3') return `### ${children}\n\n`;
+    if (tag === 'blockquote') return `> ${children}\n\n`;
+    if (tag === 'li') return `- ${children}\n`;
+    if (tag === 'ul' || tag === 'ol') return `${children}\n`;
+    if (tag === 'br') return '\n';
+    if (tag === 'div' || tag === 'p') return `${children}\n`;
+    return children;
+  }
+
+  return Array.from(container.childNodes).map(walk).join('')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
+function initRichEditors() {
+  const textareas = document.querySelectorAll('textarea[data-rich-editor]');
+  textareas.forEach((textarea) => {
+    if (textarea.dataset.richInit === '1') return;
+    textarea.dataset.richInit = '1';
+
+    const wrapper = document.createElement('div');
+    wrapper.className = 'rich-editor';
+
+    const controls = document.createElement('div');
+    controls.className = 'rich-editor-controls';
+    controls.innerHTML = `
+      <div class="rich-editor-modes">
+        <button type="button" class="btn btn-sm btn-primary" data-mode="visual">Visual</button>
+        <button type="button" class="btn btn-sm" data-mode="markdown">Markdown</button>
+      </div>
+      <div class="rich-editor-toolbar">
+        <button type="button" class="btn btn-sm" data-cmd="bold"><strong>B</strong></button>
+        <button type="button" class="btn btn-sm" data-cmd="italic"><em>I</em></button>
+        <button type="button" class="btn btn-sm" data-cmd="insertUnorderedList">List</button>
+        <button type="button" class="btn btn-sm" data-cmd="formatBlock" data-value="blockquote">Quote</button>
+        <button type="button" class="btn btn-sm" data-cmd="createLink">Link</button>
+        <button type="button" class="btn btn-sm" data-cmd="removeFormat">Clear</button>
+      </div>
+    `;
+
+    const visual = document.createElement('div');
+    visual.className = 'rich-editor-visual';
+    visual.contentEditable = 'true';
+    visual.innerHTML = markdownToHtml(textarea.value || '');
+
+    textarea.parentNode.insertBefore(wrapper, textarea);
+    wrapper.appendChild(controls);
+    wrapper.appendChild(visual);
+    wrapper.appendChild(textarea);
+
+    let mode = 'visual';
+    textarea.classList.add('rich-editor-markdown-hidden');
+
+    const setMode = (nextMode) => {
+      mode = nextMode;
+      const visualBtn = controls.querySelector('[data-mode="visual"]');
+      const mdBtn = controls.querySelector('[data-mode="markdown"]');
+      if (mode === 'visual') {
+        textarea.classList.add('rich-editor-markdown-hidden');
+        controls.querySelector('.rich-editor-toolbar').style.display = 'flex';
+        visual.style.display = 'block';
+        visualBtn.classList.add('btn-primary');
+        mdBtn.classList.remove('btn-primary');
+      } else {
+        textarea.value = htmlToMarkdown(visual);
+        textarea.classList.remove('rich-editor-markdown-hidden');
+        controls.querySelector('.rich-editor-toolbar').style.display = 'none';
+        visual.style.display = 'none';
+        mdBtn.classList.add('btn-primary');
+        visualBtn.classList.remove('btn-primary');
+      }
+    };
+
+    controls.querySelectorAll('[data-mode]').forEach((btn) => {
+      btn.addEventListener('click', () => setMode(btn.dataset.mode));
+    });
+
+    controls.querySelectorAll('.rich-editor-toolbar [data-cmd]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        visual.focus();
+        const cmd = btn.dataset.cmd;
+        if (cmd === 'createLink') {
+          const url = prompt('Enter URL');
+          if (url) document.execCommand('createLink', false, url);
+          return;
+        }
+        if (cmd === 'formatBlock') {
+          document.execCommand('formatBlock', false, btn.dataset.value || 'p');
+          return;
+        }
+        document.execCommand(cmd, false, null);
+      });
+    });
+
+    const form = textarea.closest('form');
+    if (form) {
+      form.addEventListener('submit', () => {
+        textarea.value = mode === 'visual' ? htmlToMarkdown(visual) : textarea.value;
+      });
+    }
+
+    window.richEditors[textarea.id] = {
+      appendMarkdown(md) {
+        if (mode === 'visual') {
+          visual.innerHTML += markdownToHtml(md || '');
+        } else {
+          textarea.value += md;
+        }
+      }
+    };
+  });
+}
 
 // ---- User Menu Toggle ----
 document.addEventListener('DOMContentLoaded', () => {
@@ -21,6 +172,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Poll notification count every 30 seconds
   setInterval(updateNotificationCount, 30000);
+  initRichEditors();
 });
 
 // ---- Thank Post ----
@@ -192,8 +344,13 @@ function quotePost(author, content) {
   if (!replyBox) return;
   const parsed = typeof content === 'string' ? content : JSON.stringify(content);
   const quote = `> **${author} wrote:**\n> ${parsed.replace(/\n/g, '\n> ')}\n\n`;
-  replyBox.value += quote;
-  replyBox.focus();
+  const editor = window.richEditors?.[replyBox.id];
+  if (editor && typeof editor.appendMarkdown === 'function') {
+    editor.appendMarkdown(quote);
+  } else {
+    replyBox.value += quote;
+    replyBox.focus();
+  }
   replyBox.scrollIntoView({ behavior: 'smooth' });
 }
 

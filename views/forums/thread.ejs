@@ -84,7 +84,7 @@
           <form method="POST" action="/forums/post/${post.id}/edit" class="post-inline-edit" id="post-edit-${post.id}">
             <div class="form-group">
               <label for="edit-content-${post.id}">Edit Content</label>
-              <textarea id="edit-content-${post.id}" name="content" rows="12" required>${escapeHtml(post.content || '')}</textarea>
+              <textarea id="edit-content-${post.id}" name="content" rows="12" required data-rich-editor>${escapeHtml(post.content || '')}</textarea>
               <div class="form-help">Markdown is supported.</div>
             </div>
             <div class="post-inline-edit-actions">
@@ -157,9 +157,9 @@ ${currentUser && !thread.is_locked ? `
     ` : `
       <form method="POST" action="/forums/thread/${thread.id}/reply" class="reply-form">
         <div class="form-group">
-          <textarea name="content" id="reply-content" rows="6" required
+          <textarea name="content" id="reply-content" rows="6" required data-rich-editor
             placeholder="Write your reply... (Markdown supported, @mention users)"></textarea>
-          <div class="form-help">Supports Markdown. Use @username to mention someone.</div>
+          <div class="form-help">Default mode is Visual. Switch to Markdown if you prefer.</div>
         </div>
         <button type="submit" class="btn btn-primary">Post Reply</button>
       </form>

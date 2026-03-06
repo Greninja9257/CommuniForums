@@ -625,6 +625,30 @@ input, textarea, select, button { font-family: inherit; font-size: inherit; }
   box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
 }
 
+/* Rich editor */
+.rich-editor { border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; background: var(--card-bg); }
+.rich-editor-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px;
+  border-bottom: 1px solid var(--gray-100);
+  background: var(--gray-50);
+  flex-wrap: wrap;
+}
+.rich-editor-modes, .rich-editor-toolbar { display: flex; gap: 6px; flex-wrap: wrap; }
+.rich-editor-visual {
+  min-height: 180px;
+  padding: 12px 14px;
+  line-height: 1.6;
+}
+.rich-editor-visual:focus {
+  outline: none;
+  box-shadow: inset 0 0 0 2px rgba(99, 102, 241, 0.15);
+}
+textarea.rich-editor-markdown-hidden { display: none !important; }
+
 /* --- Profile --- */
 .profile-header { margin-bottom: 24px; }
 .profile-banner { height: 120px; background: linear-gradient(135deg, var(--primary) 0%, #8b5cf6 100%); border-radius: var(--radius-lg) var(--radius-lg) 0 0; }
