@@ -26,6 +26,23 @@ async function start() {
     next();
   });
 
+  app.get('/health', (req, res) => {
+    res.status(200).json({ ok: true });
+  });
+
+  app.get('/healthz', (req, res) => {
+    res.status(200).json({ ok: true });
+  });
+
+  app.get('/ready', async (req, res) => {
+    try {
+      await db.get('SELECT 1 as ok');
+      res.status(200).json({ ok: true, db: true });
+    } catch (err) {
+      res.status(503).json({ ok: false, db: false });
+    }
+  });
+
   configureSecurity(app);
   app.use(express.static(path.join(__dirname, 'public')));
   app.use(express.urlencoded({ extended: true }));

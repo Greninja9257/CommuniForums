@@ -1,12 +1,17 @@
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 
+function isHealthRequest(req) {
+  return req.path === '/health' || req.path === '/healthz' || req.path === '/ready';
+}
+
 const globalLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   limit: 400,
   standardHeaders: 'draft-8',
   legacyHeaders: false,
-  message: 'Too many requests. Please slow down and try again shortly.'
+  message: 'Too many requests. Please slow down and try again shortly.',
+  skip: (req) => isHealthRequest(req)
 });
 
 const authLimiter = rateLimit({
@@ -27,6 +32,19 @@ const writeLimiter = rateLimit({
 
 function csrfOriginProtection(req, res, next) {
   if (['GET', 'HEAD', 'OPTIONS'].includes(req.method)) return next();
+  if (isHealthRequest(req)) return next();
+
+  // Modern browsers provide this and it works reliably behind proxies/CDNs.
+  const fetchSite = String(req.get('sec-fetch-site') || '').toLowerCase();
+  if (fetchSite) {
+    if (fetchSite === 'cross-site') {
+      return res.status(403).render('error', {
+        title: 'Forbidden',
+        message: 'Cross-site request blocked for security reasons.'
+      });
+    }
+    return next();
+  }
 
   const origin = req.get('origin');
   const referer = req.get('referer');
@@ -79,5 +97,6 @@ function configureSecurity(app) {
 module.exports = {
   authLimiter,
   configureSecurity,
+  isHealthRequest,
   writeLimiter
 };
