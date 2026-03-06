@@ -13,6 +13,12 @@
   ${currentUser ? `<a href="/forums/new-thread/${category.id}" class="btn btn-primary">+ New Thread</a>` : ''}
 </div>
 
+<div class="subcategory-bar">
+  <a href="/forums/category/${category.id}?sort=hot" class="subcategory-chip ${sort === 'hot' ? 'active' : ''}">Hot</a>
+  <a href="/forums/category/${category.id}?sort=new" class="subcategory-chip ${sort === 'new' ? 'active' : ''}">New</a>
+  <a href="/forums/category/${category.id}?sort=top" class="subcategory-chip ${sort === 'top' ? 'active' : ''}">Top</a>
+</div>
+
 ${subcategories.length > 0 ? `
   <div class="subcategory-bar">
     ${subcategories.map(sub => `
@@ -61,12 +67,12 @@ ${threads.length === 0 ? `
 
   ${totalPages > 1 ? `
     <div class="pagination">
-      ${page > 1 ? `<a href="/forums/category/${category.id}?page=${page - 1}" class="page-link">&laquo; Prev</a>` : ''}
+      ${page > 1 ? `<a href="/forums/category/${category.id}?page=${page - 1}&sort=${sort}" class="page-link">&laquo; Prev</a>` : ''}
       ${Array.from({length: Math.min(totalPages, 10)}, (_, i) => {
         const p = i + 1;
-        return `<a href="/forums/category/${category.id}?page=${p}" class="page-link ${p === page ? 'active' : ''}">${p}</a>`;
+        return `<a href="/forums/category/${category.id}?page=${p}&sort=${sort}" class="page-link ${p === page ? 'active' : ''}">${p}</a>`;
       }).join('')}
-      ${page < totalPages ? `<a href="/forums/category/${category.id}?page=${page + 1}" class="page-link">Next &raquo;</a>` : ''}
+      ${page < totalPages ? `<a href="/forums/category/${category.id}?page=${page + 1}&sort=${sort}" class="page-link">Next &raquo;</a>` : ''}
     </div>
   ` : ''}
 `}

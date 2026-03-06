@@ -1,0 +1,30 @@
+<%- include('../layout', { body: `
+<div class="page-header">
+  <div>
+    <h1>Saved Posts</h1>
+    <p>Your personal knowledge shelf.</p>
+  </div>
+</div>
+
+${savedPosts.length === 0 ? `
+  <div class="empty-state-large">
+    <h2>No saved posts yet</h2>
+    <p>Use the Save button on posts to keep useful answers for later.</p>
+    <a href="/forums" class="btn btn-primary">Explore Forums</a>
+  </div>
+` : `
+  <div class="activity-list">
+    ${savedPosts.map(item => `
+      <div class="activity-item">
+        <a href="/forums/thread/${item.thread_id}#post-${item.post_id}" class="activity-link">
+          <strong>${item.thread_title}</strong>
+          <p>${truncate(item.content, 220)}</p>
+          <span class="activity-meta">
+            by ${item.author_name} &middot; saved ${formatDate(item.saved_at)}
+          </span>
+        </a>
+      </div>
+    `).join('')}
+  </div>
+`}
+` }) %>

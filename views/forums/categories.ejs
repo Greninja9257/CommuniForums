@@ -11,6 +11,14 @@
   ` : ''}
 </div>
 
+${!currentUser ? `
+  <div class="section-card">
+    <h3>Join to unlock full forum features</h3>
+    <p>Register to create threads, save useful posts, follow discussions, and message members.</p>
+    <a href="/auth/register" class="btn btn-primary">Create Account</a>
+  </div>
+` : ''}
+
 <div class="categories-page">
   ${categories.length === 0 ? `
     <div class="empty-state-large">

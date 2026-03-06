@@ -110,6 +110,12 @@ function enforceSlowModeIfNeeded(user, capabilities, threadId) {
     });
 }
 
+function normalizeCategorySort(value) {
+  const sort = String(value || 'hot').toLowerCase();
+  if (['hot', 'new', 'top'].includes(sort)) return sort;
+  return 'hot';
+}
+
 router.get('/', async (req, res, next) => {
   try {
     const categories = await db.prepare(`
@@ -186,6 +192,7 @@ router.get('/category/:id', async (req, res, next) => {
     const page = Math.max(1, parseInt(req.query.page, 10) || 1);
     const perPage = 20;
     const offset = (page - 1) * perPage;
+    const sort = normalizeCategorySort(req.query.sort);
 
     const category = await db.prepare('SELECT * FROM categories WHERE id = ?').get(req.params.id);
     if (!category) return res.status(404).render('error', { title: 'Not Found', message: 'Category not found.' });
@@ -195,6 +202,12 @@ router.get('/category/:id', async (req, res, next) => {
     const totalThreads = (await db.prepare('SELECT COUNT(*)::int as c FROM threads WHERE category_id = ?').get(category.id)).c;
     const totalPages = Math.ceil(totalThreads / perPage);
 
+    const orderBySql = sort === 'new'
+      ? 't.created_at DESC'
+      : sort === 'top'
+        ? 't.view_count DESC, t.reply_count DESC, t.last_post_at DESC'
+        : "(t.reply_count * 3 + t.view_count + GREATEST(0, 100 - EXTRACT(EPOCH FROM (NOW() - t.created_at)) / 3600)) DESC, t.last_post_at DESC";
+
     const threads = await db.prepare(`
       SELECT t.*, u.username as author_name, u.avatar as author_avatar,
         lu.username as last_poster_name,
@@ -203,7 +216,7 @@ router.get('/category/:id', async (req, res, next) => {
       JOIN users u ON t.author_id = u.id
       LEFT JOIN users lu ON t.last_post_by = lu.id
       WHERE t.category_id = ?
-      ORDER BY t.is_pinned DESC, t.last_post_at DESC
+      ORDER BY t.is_pinned DESC, ${orderBySql}
       LIMIT ? OFFSET ?
     `).all(category.id, perPage, offset);
 
@@ -214,7 +227,8 @@ router.get('/category/:id', async (req, res, next) => {
       threads,
       page,
       totalPages,
-      totalThreads
+      totalThreads,
+      sort
     });
   } catch (error) {
     next(error);
@@ -256,6 +270,14 @@ router.get('/thread/:id', async (req, res, next) => {
       LIMIT ? OFFSET ?
     `).all(thread.id, perPage, offset);
 
+    if (res.locals.currentUser) {
+      thread.userSubscribed = !!(await db.prepare(
+        'SELECT 1 FROM thread_subscriptions WHERE thread_id = ? AND user_id = ?'
+      ).get(thread.id, res.locals.currentUser.id));
+    } else {
+      thread.userSubscribed = false;
+    }
+
     for (const post of posts) {
       post.content_html = renderMarkdown(post.content);
       post.rank = getEffectiveRank({
@@ -273,6 +295,9 @@ router.get('/thread/:id', async (req, res, next) => {
         post.userThanked = !!(await db.prepare(
           'SELECT 1 FROM thanks WHERE post_id = ? AND giver_id = ?'
         ).get(post.id, res.locals.currentUser.id));
+        post.userSaved = !!(await db.prepare(
+          'SELECT 1 FROM saved_posts WHERE post_id = ? AND user_id = ?'
+        ).get(post.id, res.locals.currentUser.id));
       }
     }
 
@@ -283,7 +308,8 @@ router.get('/thread/:id', async (req, res, next) => {
       page,
       totalPages,
       totalPosts,
-      getRank
+      getRank,
+      threadUserSubscribed: thread.userSubscribed
     });
   } catch (error) {
     next(error);
@@ -403,6 +429,16 @@ router.post('/thread/:id/reply', requireAuth, blockBanned, async (req, res, next
           'INSERT INTO notifications (user_id, type, reference_id, reference_type, message) VALUES (?, ?, ?, ?, ?)'
         ).run(thread.author_id, 'reply', thread.id, 'thread',
           `${res.locals.currentUser.username} replied to your thread "${thread.title}"`);
+      }
+
+      const subscribers = await tx.prepare(
+        'SELECT user_id FROM thread_subscriptions WHERE thread_id = ? AND user_id <> ?'
+      ).all(thread.id, res.locals.currentUser.id);
+      for (const sub of subscribers) {
+        await tx.prepare(
+          'INSERT INTO notifications (user_id, type, reference_id, reference_type, message) VALUES (?, ?, ?, ?, ?)'
+        ).run(sub.user_id, 'thread_follow', thread.id, 'thread',
+          `${res.locals.currentUser.username} replied in "${thread.title}"`);
       }
 
       await processMentions(content, postResult.lastInsertRowid, res.locals.currentUser.id, tx);
@@ -527,6 +563,54 @@ router.post('/post/:id/thank', requireAuth, blockBanned, async (req, res, next) 
     await refreshTrustForUser(res.locals.currentUser.id);
 
     res.json({ thanked: true, count: post.thanks_count + 1 });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post('/post/:id/save', requireAuth, blockBanned, async (req, res, next) => {
+  try {
+    const post = await db.prepare('SELECT id FROM posts WHERE id = ?').get(req.params.id);
+    if (!post) return res.status(404).json({ error: 'Post not found' });
+
+    const existing = await db.prepare(
+      'SELECT id FROM saved_posts WHERE user_id = ? AND post_id = ?'
+    ).get(res.locals.currentUser.id, post.id);
+
+    if (existing) {
+      await db.prepare('DELETE FROM saved_posts WHERE user_id = ? AND post_id = ?')
+        .run(res.locals.currentUser.id, post.id);
+      return res.json({ saved: false });
+    }
+
+    await db.prepare(
+      'INSERT INTO saved_posts (user_id, post_id) VALUES (?, ?) ON CONFLICT (user_id, post_id) DO NOTHING'
+    ).run(res.locals.currentUser.id, post.id);
+    return res.json({ saved: true });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post('/thread/:id/subscribe', requireAuth, blockBanned, async (req, res, next) => {
+  try {
+    const thread = await db.prepare('SELECT id FROM threads WHERE id = ?').get(req.params.id);
+    if (!thread) return res.status(404).json({ error: 'Thread not found' });
+
+    const existing = await db.prepare(
+      'SELECT id FROM thread_subscriptions WHERE user_id = ? AND thread_id = ?'
+    ).get(res.locals.currentUser.id, thread.id);
+
+    if (existing) {
+      await db.prepare('DELETE FROM thread_subscriptions WHERE user_id = ? AND thread_id = ?')
+        .run(res.locals.currentUser.id, thread.id);
+      return res.json({ subscribed: false });
+    }
+
+    await db.prepare(
+      'INSERT INTO thread_subscriptions (user_id, thread_id) VALUES (?, ?) ON CONFLICT (user_id, thread_id) DO NOTHING'
+    ).run(res.locals.currentUser.id, thread.id);
+    return res.json({ subscribed: true });
   } catch (error) {
     next(error);
   }

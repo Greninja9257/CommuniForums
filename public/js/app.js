@@ -45,6 +45,48 @@ async function thankPost(evt, postId) {
   }
 }
 
+async function toggleSavePost(postId, btnEl) {
+  try {
+    const res = await fetch(`/forums/post/${postId}/save`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' }
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      showToast(data.error || 'Could not save post', 'error');
+      return;
+    }
+    if (btnEl) {
+      btnEl.classList.toggle('active', data.saved);
+      btnEl.textContent = data.saved ? 'Saved' : 'Save';
+    }
+    showToast(data.saved ? 'Post saved' : 'Post unsaved', 'success');
+  } catch (err) {
+    showToast('Something went wrong', 'error');
+  }
+}
+
+async function toggleThreadSubscription(threadId, btnEl) {
+  try {
+    const res = await fetch(`/forums/thread/${threadId}/subscribe`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' }
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      showToast(data.error || 'Could not update follow status', 'error');
+      return;
+    }
+    if (btnEl) {
+      btnEl.classList.toggle('btn-primary', data.subscribed);
+      btnEl.textContent = data.subscribed ? 'Subscribed' : 'Follow Thread';
+    }
+    showToast(data.subscribed ? 'Thread followed' : 'Thread unfollowed', 'success');
+  } catch (err) {
+    showToast('Something went wrong', 'error');
+  }
+}
+
 // ---- Report Post ----
 let currentReportPostId = null;
 

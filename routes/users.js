@@ -328,6 +328,29 @@ router.get('/members', async (req, res, next) => {
   }
 });
 
+router.get('/saved', requireAuth, async (req, res, next) => {
+  try {
+    const savedPosts = await db.prepare(`
+      SELECT sp.created_at as saved_at, p.id as post_id, p.content, p.thread_id, p.created_at as post_created_at,
+        t.title as thread_title, u.id as author_id, u.username as author_name
+      FROM saved_posts sp
+      JOIN posts p ON p.id = sp.post_id
+      JOIN threads t ON t.id = p.thread_id
+      JOIN users u ON u.id = p.author_id
+      WHERE sp.user_id = ?
+      ORDER BY sp.created_at DESC
+      LIMIT 200
+    `).all(res.locals.currentUser.id);
+
+    res.render('users/saved', {
+      title: 'Saved Posts',
+      savedPosts
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
 router.post('/profile/:id/rank', requireAuth, async (req, res, next) => {
   try {
     if (!isHighestRank(res.locals.currentUser)) {

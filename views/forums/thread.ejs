@@ -38,6 +38,18 @@
       </form>
     </div>
   ` : '')}
+  ${currentUser ? `
+    <div class="thread-mod-actions">
+      <button type="button" class="btn btn-sm ${threadUserSubscribed ? 'btn-primary' : ''}"
+        onclick="toggleThreadSubscription(${thread.id}, this)">
+        ${threadUserSubscribed ? 'Subscribed' : 'Follow Thread'}
+      </button>
+    </div>
+  ` : `
+    <div class="thread-mod-actions">
+      <a href="/auth/register" class="btn btn-sm btn-primary">Join to Follow</a>
+    </div>
+  `}
 </div>
 
 <div class="posts-container">
@@ -101,6 +113,9 @@
               ${post.author_id !== currentUser.id && capabilities.canReportPost ? `
                 <button class="btn-action" onclick="reportPost(${post.id})" title="Report">Report</button>
               ` : ''}
+              <button class="btn-action ${post.userSaved ? 'active' : ''}" onclick="toggleSavePost(${post.id}, this)" title="Save">
+                ${post.userSaved ? 'Saved' : 'Save'}
+              </button>
             </div>
             <div class="post-action-group">
               ${post.author_id === currentUser.id || ['moderator', 'admin'].includes(currentUser.role) ? `
@@ -153,6 +168,11 @@ ${currentUser && !thread.is_locked ? `
 ` : (!currentUser ? `
   <div class="reply-form-container">
     <p class="text-center"><a href="/auth/login?redirect=/forums/thread/${thread.id}">Log in</a> or <a href="/auth/register">register</a> to reply.</p>
+    <div class="mini-stats mt-2">
+      <div class="mini-stat"><span class="mini-stat-value">Save</span><span>Posts</span></div>
+      <div class="mini-stat"><span class="mini-stat-value">Follow</span><span>Threads</span></div>
+      <div class="mini-stat"><span class="mini-stat-value">DM</span><span>Members</span></div>
+    </div>
   </div>
 ` : (thread.is_locked ? `
   <div class="reply-form-container">
