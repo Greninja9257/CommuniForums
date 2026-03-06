@@ -41,6 +41,11 @@
     <span class="admin-stat-label">Pending Reports</span>
   </div>
   <div class="admin-stat-card">
+    <span class="admin-stat-icon">🧭</span>
+    <span class="admin-stat-number">${stats.triagedReports}</span>
+    <span class="admin-stat-label">In Review</span>
+  </div>
+  <div class="admin-stat-card">
     <span class="admin-stat-icon">🔨</span>
     <span class="admin-stat-number">${stats.bannedUsers}</span>
     <span class="admin-stat-label">Banned Users</span>
@@ -54,27 +59,52 @@
 
 <div class="admin-grid">
   <div class="section-card">
-    <h2>Pending Reports (${stats.pendingReports})</h2>
-    ${recentReports.length === 0 ? '<p class="empty-state">No pending reports.</p>' : `
+    <h2>Moderation Queue</h2>
+    ${recentReports.length === 0 ? '<p class="empty-state">No active reports.</p>' : `
       <div class="report-list">
         ${recentReports.map(r => `
           <div class="report-item">
             <div class="report-info">
               <p><strong>${r.reporter_name}</strong> reported <strong>${r.post_author_name}</strong>'s post</p>
+              <p class="report-reason">Category: ${r.report_category || 'general'} · Priority: ${r.priority || 'normal'} · State: ${r.workflow_state || 'new'}</p>
+              <p class="report-reason">Assigned: ${r.assigned_mod_name || 'Unassigned'}</p>
               <p class="report-reason">Reason: ${r.reason}</p>
               <p class="report-content">Post content: "${truncate(r.post_content, 150)}"</p>
               <span class="report-time">${formatDate(r.created_at)}</span>
             </div>
             <div class="report-actions">
               <form method="POST" action="/admin/reports/${r.id}/resolve" style="display:inline">
-                <input type="hidden" name="action" value="resolved">
-                <input type="hidden" name="note" value="Reviewed and resolved">
-                <button class="btn btn-sm btn-primary">Resolve</button>
+                <input type="hidden" name="action" value="triage">
+                <input type="hidden" name="note" value="Triaged for review">
+                <button class="btn btn-sm">Triage</button>
+              </form>
+              <form method="POST" action="/admin/reports/${r.id}/resolve" style="display:inline">
+                <input type="hidden" name="action" value="warn_user">
+                <input type="hidden" name="note" value="Warning issued after report review">
+                <button class="btn btn-sm btn-primary">Warn</button>
+              </form>
+              <form method="POST" action="/admin/reports/${r.id}/resolve" style="display:inline">
+                <input type="hidden" name="action" value="delete_post">
+                <input type="hidden" name="note" value="Post removed after report review">
+                <button class="btn btn-sm">Delete Post</button>
+              </form>
+              <form method="POST" action="/admin/reports/${r.id}/resolve" style="display:inline">
+                <input type="hidden" name="action" value="ban_1d">
+                <input type="hidden" name="note" value="Escalated after report review">
+                <button class="btn btn-sm">Ban 1d</button>
               </form>
               <form method="POST" action="/admin/reports/${r.id}/resolve" style="display:inline">
                 <input type="hidden" name="action" value="dismissed">
                 <input type="hidden" name="note" value="Dismissed">
                 <button class="btn btn-sm">Dismiss</button>
+              </form>
+              <form method="POST" action="/admin/reports/${r.id}/resolve" style="display:inline; margin-top: 6px;">
+                <input type="hidden" name="action" value="assign">
+                <select name="assignee_id">
+                  <option value="">Unassigned</option>
+                  ${moderatorList.map(m => `<option value="${m.id}" ${r.assigned_mod_id === m.id ? 'selected' : ''}>${m.username}</option>`).join('')}
+                </select>
+                <button class="btn btn-sm">Assign</button>
               </form>
             </div>
           </div>

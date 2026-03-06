@@ -20,6 +20,11 @@ ${success ? `<div class="alert alert-success">${success}</div>` : ''}
         <input type="text" value="${currentUser.email}" disabled class="input-disabled">
       </div>
       <div class="form-group">
+        <label>Trust Level</label>
+        <input type="text" value="${(currentUser.trust_level || 'new').toUpperCase()} (${currentUser.trust_score || 0})" disabled class="input-disabled">
+        <div class="form-help">Trust score unlocks stronger community permissions over time.</div>
+      </div>
+      <div class="form-group">
         <label for="avatar">Avatar URL</label>
         <input type="url" id="avatar" name="avatar" value="${currentUser.avatar}"
           placeholder="https://example.com/avatar.jpg">
@@ -54,7 +59,8 @@ ${success ? `<div class="alert alert-success">${success}</div>` : ''}
       </div>
       <div class="form-group">
         <label for="new_password">New Password</label>
-        <input type="password" id="new_password" name="new_password" required minlength="6">
+        <input type="password" id="new_password" name="new_password" required minlength="10">
+        <div class="form-help">At least 10 chars with uppercase, lowercase, and number.</div>
       </div>
       <div class="form-group">
         <label for="confirm_password">Confirm New Password</label>
@@ -81,6 +87,49 @@ ${success ? `<div class="alert alert-success">${success}</div>` : ''}
         <p class="mt-1">Save this key now! It cannot be retrieved again.</p>
       </div>
     </div>
+  </div>
+
+  <div class="section-card">
+    <h2>Two-Factor Authentication (MFA)</h2>
+    ${currentUser.mfa_enabled ? `
+      <p>MFA is currently <strong>enabled</strong>.</p>
+      <form method="POST" action="/users/settings/mfa/disable" class="settings-form">
+        <div class="form-group">
+          <label for="current_password_for_mfa">Confirm Password to Disable MFA</label>
+          <input type="password" id="current_password_for_mfa" name="current_password_for_mfa" required>
+        </div>
+        <button type="submit" class="btn">Disable MFA</button>
+      </form>
+    ` : `
+      <p>MFA is currently <strong>disabled</strong>.</p>
+      <form method="POST" action="/users/settings/mfa/setup" class="settings-form">
+        <button type="submit" class="btn btn-primary">Start MFA Setup</button>
+      </form>
+    `}
+
+    ${mfaSetup ? `
+      <div class="alert alert-success mt-2">
+        <p><strong>Secret Key:</strong> <code>${mfaSetup.secret}</code></p>
+        <p>Manual setup URI:</p>
+        <code class="api-key-display">${mfaSetup.uri}</code>
+      </div>
+      <form method="POST" action="/users/settings/mfa/enable" class="settings-form mt-2">
+        <div class="form-group">
+          <label for="mfa_token">Enter 6-digit code from your authenticator app</label>
+          <input type="text" id="mfa_token" name="mfa_token" required>
+        </div>
+        <button type="submit" class="btn btn-primary">Enable MFA</button>
+      </form>
+    ` : ''}
+
+    ${backupCodes && backupCodes.length ? `
+      <div class="alert alert-success mt-2">
+        <p><strong>Backup Codes</strong> (store these safely):</p>
+        <ul>
+          ${backupCodes.map(code => `<li><code>${code}</code></li>`).join('')}
+        </ul>
+      </div>
+    ` : ''}
   </div>
 </div>
 ` }) %>

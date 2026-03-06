@@ -15,7 +15,7 @@
         <span>&middot; Last active ${formatDate(profileUser.last_active)}</span>
       </div>
     </div>
-    ${currentUser && currentUser.id !== profileUser.id ? `
+    ${currentUser && currentUser.id !== profileUser.id && capabilities.canSendDirectMessage ? `
       <a href="/messages/new?to=${profileUser.username}" class="btn btn-sm">Message</a>
     ` : ''}
   </div>
@@ -126,6 +126,20 @@
         ` : ''}
       </div>
     ` : ''}
+
+    <div class="section-card">
+      <h3>Trust</h3>
+      <div class="mini-stats">
+        <div class="mini-stat">
+          <span class="mini-stat-value">${trustLevel.toUpperCase()}</span>
+          <span>Level</span>
+        </div>
+        <div class="mini-stat">
+          <span class="mini-stat-value">${trustScore}</span>
+          <span>Score</span>
+        </div>
+      </div>
+    </div>
 
     <div class="section-card">
       <h3>30-Day Activity</h3>

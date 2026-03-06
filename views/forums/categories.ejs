@@ -4,8 +4,10 @@
     <h1>Forums</h1>
     <p>Browse categories and join the conversations.</p>
   </div>
-  ${currentUser ? `
+  ${currentUser && capabilities.canCreateCategory ? `
     <button type="button" class="btn btn-primary" onclick="openModal('create-category-modal')">Create a Category</button>
+  ` : currentUser ? `
+    <span class="form-help">Create Category unlocks at Trusted trust level.</span>
   ` : ''}
 </div>
 
@@ -56,7 +58,7 @@
   `).join('')}
 </div>
 
-${currentUser ? `
+${currentUser && capabilities.canCreateCategory ? `
   <div class="modal" id="create-category-modal">
     <div class="modal-content">
       <div class="modal-header">

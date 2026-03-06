@@ -4,16 +4,19 @@ const PgSession = require('connect-pg-simple')(session);
 const path = require('path');
 const { initialize, pool, getEffectiveRank, isHighestRank, db } = require('./database');
 const { escapeHtml, escapeAttr, escapeJs, safeRedirect } = require('./utils/security');
+const { configureSecurity, authLimiter, writeLimiter } = require('./middleware/security');
 
 async function start() {
   await initialize();
 
   const app = express();
   const PORT = process.env.PORT || 3000;
+  app.disable('x-powered-by');
 
   app.set('view engine', 'ejs');
   app.set('views', path.join(__dirname, 'views'));
 
+  configureSecurity(app);
   app.use(express.static(path.join(__dirname, 'public')));
   app.use(express.urlencoded({ extended: true }));
   app.use(express.json());
@@ -29,7 +32,9 @@ async function start() {
     saveUninitialized: false,
     cookie: {
       maxAge: 30 * 24 * 60 * 60 * 1000,
-      httpOnly: true
+      httpOnly: true,
+      sameSite: 'lax',
+      secure: process.env.NODE_ENV === 'production'
     }
   }));
 
@@ -76,14 +81,14 @@ async function start() {
     next();
   });
 
-  app.use('/auth', require('./routes/auth'));
+  app.use('/auth', authLimiter, require('./routes/auth'));
   app.use('/forums', require('./routes/forums'));
   app.use('/users', require('./routes/users'));
-  app.use('/messages', require('./routes/messages'));
+  app.use('/messages', writeLimiter, require('./routes/messages'));
   app.use('/notifications', require('./routes/notifications'));
-  app.use('/admin', require('./routes/admin'));
+  app.use('/admin', writeLimiter, require('./routes/admin'));
   app.use('/search', require('./routes/search'));
-  app.use('/api/v1', require('./routes/api'));
+  app.use('/api/v1', writeLimiter, require('./routes/api'));
 
   app.get('/', async (req, res, next) => {
     try {

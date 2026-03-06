@@ -98,7 +98,7 @@
                 onclick="quotePost(this)" title="Quote">
                 Quote
               </button>
-              ${post.author_id !== currentUser.id ? `
+              ${post.author_id !== currentUser.id && capabilities.canReportPost ? `
                 <button class="btn-action" onclick="reportPost(${post.id})" title="Report">Report</button>
               ` : ''}
             </div>
@@ -169,6 +169,16 @@ ${currentUser && !thread.is_locked ? `
     </div>
     <p class="modal-note">This is private and reviewed by moderators.</p>
     <form id="report-form">
+      <div class="form-group">
+        <label>Report category:</label>
+        <select name="category">
+          <option value="general">General</option>
+          <option value="harassment">Harassment</option>
+          <option value="spam">Spam</option>
+          <option value="misinformation">Misinformation</option>
+          <option value="safety">Safety Risk</option>
+        </select>
+      </div>
       <div class="form-group">
         <label>Reason category:</label>
         <select name="reason-select" onchange="document.getElementById('report-reason').value = this.value">

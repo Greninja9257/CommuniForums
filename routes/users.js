@@ -4,6 +4,9 @@ const router = express.Router();
 const { db, getRank, getEffectiveRank, getRankByTitle, isHighestRank, RANKS } = require('../database');
 const { requireAuth } = require('../middleware/auth');
 const { scanFields, warningMessage } = require('../utils/profanity');
+const { buildOtpAuthUri, generateBackupCodes, generateSecret, verifyTotpCode } = require('../utils/mfa');
+const { TRUST_LEVELS, refreshTrustForUser } = require('../utils/trust');
+const { validateStrongPassword } = require('../utils/security');
 
 function getUnlockedRanks(thanksReceived) {
   return RANKS.filter(r => (thanksReceived || 0) >= r.min);
@@ -11,13 +14,14 @@ function getUnlockedRanks(thanksReceived) {
 
 async function getSettingsState(userId) {
   const settingsUser = await db.prepare(`
-    SELECT id, username, email, avatar, bio, thanks_received, selected_rank_title
+    SELECT id, username, email, avatar, bio, thanks_received, selected_rank_title, mfa_enabled, trust_level, trust_score
     FROM users WHERE id = ?
   `).get(userId);
   return {
     settingsUser,
     unlockedRanks: getUnlockedRanks(settingsUser?.thanks_received || 0),
-    currentSelectedRankTitle: settingsUser?.selected_rank_title || ''
+    currentSelectedRankTitle: settingsUser?.selected_rank_title || '',
+    trustLevels: TRUST_LEVELS
   };
 }
 
@@ -27,7 +31,7 @@ router.get('/profile/:id', async (req, res, next) => {
       SELECT id, username, email, avatar, bio, role, thanks_received, thanks_given,
         post_count, thread_count, banned_until, ban_reason, last_active, created_at,
         rank_override_title, rank_override_color, rank_override_reason, rank_override_by, rank_override_at,
-        selected_rank_title
+        selected_rank_title, trust_level, trust_score
       FROM users WHERE id = ?
     `).get(req.params.id);
 
@@ -88,6 +92,8 @@ router.get('/profile/:id', async (req, res, next) => {
       rankOverrideBy,
       canManageRanks: isHighestRank(res.locals.currentUser),
       rankOptions: RANKS.map(r => r.title),
+      trustLevel: user.trust_level || 'new',
+      trustScore: user.trust_score || 0,
       badges,
       recentPosts,
       recentThreads,
@@ -117,7 +123,10 @@ router.get('/settings', requireAuth, async (req, res, next) => {
       error: null,
       success: null,
       unlockedRanks: state.unlockedRanks,
-      currentSelectedRankTitle: state.currentSelectedRankTitle
+      currentSelectedRankTitle: state.currentSelectedRankTitle,
+      trustLevels: state.trustLevels,
+      mfaSetup: null,
+      backupCodes: []
     });
   } catch (error) {
     next(error);
@@ -137,7 +146,10 @@ router.post('/settings', requireAuth, async (req, res, next) => {
         error,
         success,
         unlockedRanks: state.unlockedRanks,
-        currentSelectedRankTitle: state.currentSelectedRankTitle
+        currentSelectedRankTitle: state.currentSelectedRankTitle,
+        trustLevels: state.trustLevels,
+        mfaSetup: null,
+        backupCodes: []
       });
     };
 
@@ -160,8 +172,9 @@ router.post('/settings', requireAuth, async (req, res, next) => {
       if (!valid) {
         return renderSettings('Current password is incorrect.', null);
       }
-      if (new_password.length < 6) {
-        return renderSettings('New password must be at least 6 characters.', null);
+      const passwordError = validateStrongPassword(new_password);
+      if (passwordError) {
+        return renderSettings(passwordError, null);
       }
       if (new_password !== confirm_password) {
         return renderSettings('New passwords do not match.', null);
@@ -185,7 +198,94 @@ router.post('/settings', requireAuth, async (req, res, next) => {
       }
     }
 
+    await refreshTrustForUser(res.locals.currentUser.id);
     return renderSettings(null, 'Settings updated successfully!');
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post('/settings/mfa/setup', requireAuth, async (req, res, next) => {
+  try {
+    const secret = generateSecret();
+    const uri = buildOtpAuthUri({
+      issuer: 'CommuniForums',
+      username: res.locals.currentUser.username,
+      secret
+    });
+
+    await db.prepare('UPDATE users SET mfa_secret = ? WHERE id = ?').run(secret, res.locals.currentUser.id);
+    const state = await getSettingsState(res.locals.currentUser.id);
+    if (state.settingsUser) {
+      res.locals.currentUser = { ...res.locals.currentUser, ...state.settingsUser };
+    }
+
+    res.render('users/settings', {
+      title: 'Settings',
+      error: null,
+      success: 'Scan the secret and submit one code to enable MFA.',
+      unlockedRanks: state.unlockedRanks,
+      currentSelectedRankTitle: state.currentSelectedRankTitle,
+      trustLevels: state.trustLevels,
+      mfaSetup: { secret, uri },
+      backupCodes: []
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post('/settings/mfa/enable', requireAuth, async (req, res, next) => {
+  try {
+    const token = (req.body.mfa_token || '').trim();
+    const user = await db.prepare('SELECT id, mfa_secret FROM users WHERE id = ?').get(res.locals.currentUser.id);
+    if (!user?.mfa_secret || !verifyTotpCode(token, user.mfa_secret)) {
+      req.flash('error', 'Invalid MFA verification code.');
+      return res.redirect('/users/settings');
+    }
+
+    const { codes, hashes } = generateBackupCodes();
+    await db.prepare(
+      'UPDATE users SET mfa_enabled = true, mfa_backup_codes = ? WHERE id = ?'
+    ).run(JSON.stringify(hashes), user.id);
+    await refreshTrustForUser(user.id);
+
+    const state = await getSettingsState(user.id);
+    if (state.settingsUser) {
+      res.locals.currentUser = { ...res.locals.currentUser, ...state.settingsUser };
+    }
+
+    return res.render('users/settings', {
+      title: 'Settings',
+      error: null,
+      success: 'MFA enabled. Save your backup codes.',
+      unlockedRanks: state.unlockedRanks,
+      currentSelectedRankTitle: state.currentSelectedRankTitle,
+      trustLevels: state.trustLevels,
+      mfaSetup: null,
+      backupCodes: codes
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post('/settings/mfa/disable', requireAuth, async (req, res, next) => {
+  try {
+    const user = await db.prepare('SELECT id, password_hash FROM users WHERE id = ?').get(res.locals.currentUser.id);
+    const password = req.body.current_password_for_mfa || '';
+    const valid = await bcrypt.compare(password, user.password_hash);
+    if (!valid) {
+      req.flash('error', 'Password required to disable MFA.');
+      return res.redirect('/users/settings');
+    }
+
+    await db.prepare(
+      'UPDATE users SET mfa_enabled = false, mfa_secret = NULL, mfa_backup_codes = NULL WHERE id = ?'
+    ).run(user.id);
+    await refreshTrustForUser(user.id);
+    req.flash('success', 'MFA disabled.');
+    return res.redirect('/users/settings');
   } catch (error) {
     next(error);
   }

@@ -59,6 +59,7 @@ document.addEventListener('DOMContentLoaded', () => {
     reportForm.addEventListener('submit', async (e) => {
       e.preventDefault();
       const reason = reportForm.querySelector('textarea[name="reason"]').value.trim();
+      const category = reportForm.querySelector('select[name="category"]')?.value || 'general';
       if (!reason || reason.length < 5) {
         showToast('Please provide a reason (min 5 characters)', 'error');
         return;
@@ -67,7 +68,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const res = await fetch(`/forums/post/${currentReportPostId}/report`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ reason })
+          body: JSON.stringify({ reason, category })
         });
         const data = await res.json();
         if (res.ok) {

@@ -156,7 +156,14 @@ async function initialize() {
       rank_override_reason TEXT NULL,
       rank_override_by INTEGER NULL REFERENCES users(id),
       rank_override_at TIMESTAMPTZ NULL,
-      selected_rank_title TEXT NULL
+      selected_rank_title TEXT NULL,
+      mfa_enabled BOOLEAN DEFAULT false,
+      mfa_secret TEXT NULL,
+      mfa_backup_codes TEXT NULL,
+      failed_login_attempts INTEGER DEFAULT 0,
+      locked_until TIMESTAMPTZ NULL,
+      trust_score INTEGER DEFAULT 0,
+      trust_level TEXT DEFAULT 'new' CHECK(trust_level IN ('new', 'basic', 'trusted', 'core'))
     );
 
     CREATE TABLE IF NOT EXISTS categories (
@@ -272,11 +279,27 @@ async function initialize() {
       reporter_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
       post_id INTEGER NOT NULL REFERENCES posts(id) ON DELETE CASCADE,
       reason TEXT NOT NULL,
+      report_category TEXT DEFAULT 'general',
+      priority TEXT DEFAULT 'normal',
+      workflow_state TEXT DEFAULT 'new' CHECK(workflow_state IN ('new', 'triaged', 'investigating', 'actioned', 'closed')),
+      assigned_mod_id INTEGER NULL REFERENCES users(id),
+      evidence_snapshot TEXT DEFAULT '',
       status TEXT DEFAULT 'pending' CHECK(status IN ('pending', 'reviewed', 'resolved', 'dismissed')),
+      resolved_action TEXT NULL,
       resolved_by INTEGER NULL REFERENCES users(id),
       resolution_note TEXT NULL,
       created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
       resolved_at TIMESTAMPTZ NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS user_security_events (
+      id SERIAL PRIMARY KEY,
+      user_id INTEGER NULL REFERENCES users(id) ON DELETE SET NULL,
+      event_type TEXT NOT NULL,
+      ip TEXT NULL,
+      user_agent TEXT NULL,
+      metadata TEXT NULL,
+      created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
     );
 
     CREATE TABLE IF NOT EXISTS mod_actions (
@@ -313,6 +336,10 @@ async function initialize() {
     CREATE INDEX IF NOT EXISTS idx_pm_receiver ON private_messages(receiver_id, is_read);
     CREATE INDEX IF NOT EXISTS idx_pm_sender ON private_messages(sender_id);
     CREATE INDEX IF NOT EXISTS idx_reports_status ON reports(status);
+    CREATE INDEX IF NOT EXISTS idx_reports_workflow_state ON reports(workflow_state);
+    CREATE INDEX IF NOT EXISTS idx_reports_assignee ON reports(assigned_mod_id);
+    CREATE INDEX IF NOT EXISTS idx_users_trust_level ON users(trust_level, trust_score DESC);
+    CREATE INDEX IF NOT EXISTS idx_security_events_user ON user_security_events(user_id, created_at DESC);
   `);
 
   const badgeCount = await db.get('SELECT COUNT(*)::int as count FROM badges');
@@ -365,6 +392,59 @@ async function initialize() {
   await db.exec(`
     ALTER TABLE users
     ADD COLUMN IF NOT EXISTS selected_rank_title TEXT NULL
+  `);
+
+  await db.exec(`
+    ALTER TABLE users
+    ADD COLUMN IF NOT EXISTS mfa_enabled BOOLEAN DEFAULT false
+  `);
+  await db.exec(`
+    ALTER TABLE users
+    ADD COLUMN IF NOT EXISTS mfa_secret TEXT NULL
+  `);
+  await db.exec(`
+    ALTER TABLE users
+    ADD COLUMN IF NOT EXISTS mfa_backup_codes TEXT NULL
+  `);
+  await db.exec(`
+    ALTER TABLE users
+    ADD COLUMN IF NOT EXISTS failed_login_attempts INTEGER DEFAULT 0
+  `);
+  await db.exec(`
+    ALTER TABLE users
+    ADD COLUMN IF NOT EXISTS locked_until TIMESTAMPTZ NULL
+  `);
+  await db.exec(`
+    ALTER TABLE users
+    ADD COLUMN IF NOT EXISTS trust_score INTEGER DEFAULT 0
+  `);
+  await db.exec(`
+    ALTER TABLE users
+    ADD COLUMN IF NOT EXISTS trust_level TEXT DEFAULT 'new'
+  `);
+  await db.exec(`
+    ALTER TABLE reports
+    ADD COLUMN IF NOT EXISTS report_category TEXT DEFAULT 'general'
+  `);
+  await db.exec(`
+    ALTER TABLE reports
+    ADD COLUMN IF NOT EXISTS priority TEXT DEFAULT 'normal'
+  `);
+  await db.exec(`
+    ALTER TABLE reports
+    ADD COLUMN IF NOT EXISTS workflow_state TEXT DEFAULT 'new'
+  `);
+  await db.exec(`
+    ALTER TABLE reports
+    ADD COLUMN IF NOT EXISTS assigned_mod_id INTEGER NULL REFERENCES users(id)
+  `);
+  await db.exec(`
+    ALTER TABLE reports
+    ADD COLUMN IF NOT EXISTS evidence_snapshot TEXT DEFAULT ''
+  `);
+  await db.exec(`
+    ALTER TABLE reports
+    ADD COLUMN IF NOT EXISTS resolved_action TEXT NULL
   `);
 }
 

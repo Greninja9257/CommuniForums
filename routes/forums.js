@@ -2,11 +2,13 @@ const express = require('express');
 const router = express.Router();
 const { db, transaction, getRank, getEffectiveRank } = require('../database');
 const { requireAuth } = require('../middleware/auth');
+const { requireCapability } = require('../middleware/permissions');
 const { blockBanned } = require('../middleware/moderation');
 const { marked } = require('marked');
 const { JSDOM } = require('jsdom');
 const createDOMPurify = require('dompurify');
 const { scanFields, warningMessage } = require('../utils/profanity');
+const { refreshTrustForUser } = require('../utils/trust');
 
 const window = new JSDOM('').window;
 const DOMPurify = createDOMPurify(window);
@@ -78,6 +80,36 @@ async function checkBadges(userId, tx = db) {
   }
 }
 
+function inferReportPriority(reason, trustLevel) {
+  const text = String(reason || '').toLowerCase();
+  if (/(dox|threat|violence|self.?harm|suicide|hate|child)/.test(text)) return 'high';
+  if (/(spam|scam|harass|abuse|nsfw)/.test(text)) return 'medium';
+  if (trustLevel === 'core' || trustLevel === 'trusted') return 'medium';
+  return 'normal';
+}
+
+function enforceSlowModeIfNeeded(user, capabilities, threadId) {
+  if (!user || capabilities?.canBypassSlowMode) {
+    return Promise.resolve();
+  }
+
+  return db.prepare(`
+    SELECT created_at FROM posts
+    WHERE author_id = ? ${threadId ? 'AND thread_id = ?' : ''}
+    ORDER BY created_at DESC LIMIT 1
+  `).get(...(threadId ? [user.id, threadId] : [user.id]))
+    .then((lastPost) => {
+      if (!lastPost) return;
+      const elapsed = Date.now() - new Date(lastPost.created_at).getTime();
+      if (elapsed < 15000) {
+        const waitSeconds = Math.ceil((15000 - elapsed) / 1000);
+        const err = new Error(`Please wait ${waitSeconds}s before posting again.`);
+        err.statusCode = 429;
+        throw err;
+      }
+    });
+}
+
 router.get('/', async (req, res, next) => {
   try {
     const categories = await db.prepare(`
@@ -101,7 +133,10 @@ router.get('/', async (req, res, next) => {
   }
 });
 
-router.post('/categories/create', requireAuth, blockBanned, async (req, res, next) => {
+router.post('/categories/create', requireAuth, blockBanned, requireCapability('canCreateCategory', {
+  message: 'Create category unlocks at Trusted trust level.',
+  redirectTo: '/forums'
+}), async (req, res, next) => {
   try {
     const name = (req.body.name || '').trim();
     const description = (req.body.description || '').trim();
@@ -288,6 +323,7 @@ router.post('/new-thread/:categoryId', requireAuth, blockBanned, async (req, res
         error: warningMessage(threadScan)
       });
     }
+    await enforceSlowModeIfNeeded(res.locals.currentUser, res.locals.capabilities, null);
 
     const threadId = await transaction(async (tx) => {
       const threadResult = await tx.prepare(
@@ -311,8 +347,17 @@ router.post('/new-thread/:categoryId', requireAuth, blockBanned, async (req, res
     });
 
     req.flash('success', 'Thread created successfully!');
+    await refreshTrustForUser(res.locals.currentUser.id);
     res.redirect(`/forums/thread/${threadId}`);
   } catch (error) {
+    if (error.statusCode === 429) {
+      const category = await db.prepare('SELECT * FROM categories WHERE id = ?').get(req.params.categoryId);
+      return res.status(429).render('forums/new-thread', {
+        title: 'New Thread',
+        category,
+        error: error.message
+      });
+    }
     next(error);
   }
 });
@@ -336,6 +381,7 @@ router.post('/thread/:id/reply', requireAuth, blockBanned, async (req, res, next
       req.flash('error', warningMessage(replyScan));
       return res.redirect(`/forums/thread/${thread.id}`);
     }
+    await enforceSlowModeIfNeeded(res.locals.currentUser, res.locals.capabilities, thread.id);
 
     await transaction(async (tx) => {
       const postResult = await tx.prepare(
@@ -374,8 +420,13 @@ router.post('/thread/:id/reply', requireAuth, blockBanned, async (req, res, next
 
     const totalPosts = (await db.prepare('SELECT COUNT(*)::int as c FROM posts WHERE thread_id = ?').get(thread.id)).c;
     const lastPage = Math.ceil(totalPosts / 15);
+    await refreshTrustForUser(res.locals.currentUser.id);
     res.redirect(`/forums/thread/${thread.id}?page=${lastPage}#latest`);
   } catch (error) {
+    if (error.statusCode === 429) {
+      req.flash('error', error.message);
+      return res.redirect(`/forums/thread/${req.params.id}`);
+    }
     next(error);
   }
 });
@@ -455,6 +506,8 @@ router.post('/post/:id/thank', requireAuth, blockBanned, async (req, res, next) 
       await db.prepare('UPDATE posts SET thanks_count = GREATEST(thanks_count - 1, 0) WHERE id = ?').run(post.id);
       await db.prepare('UPDATE users SET thanks_received = GREATEST(thanks_received - 1, 0) WHERE id = ?').run(post.author_id);
       await db.prepare('UPDATE users SET thanks_given = GREATEST(thanks_given - 1, 0) WHERE id = ?').run(res.locals.currentUser.id);
+      await refreshTrustForUser(post.author_id);
+      await refreshTrustForUser(res.locals.currentUser.id);
       return res.json({ thanked: false, count: Math.max(0, post.thanks_count - 1) });
     }
 
@@ -470,6 +523,8 @@ router.post('/post/:id/thank', requireAuth, blockBanned, async (req, res, next) 
 
     await checkBadges(post.author_id);
     await checkBadges(res.locals.currentUser.id);
+    await refreshTrustForUser(post.author_id);
+    await refreshTrustForUser(res.locals.currentUser.id);
 
     res.json({ thanked: true, count: post.thanks_count + 1 });
   } catch (error) {
@@ -477,21 +532,36 @@ router.post('/post/:id/thank', requireAuth, blockBanned, async (req, res, next) 
   }
 });
 
-router.post('/post/:id/report', requireAuth, async (req, res, next) => {
+router.post('/post/:id/report', requireAuth, requireCapability('canReportPost', { json: true }), async (req, res, next) => {
   try {
     const post = await db.prepare('SELECT * FROM posts WHERE id = ?').get(req.params.id);
     if (!post) return res.status(404).json({ error: 'Post not found' });
 
-    const { reason } = req.body;
+    const { reason, category } = req.body;
     if (!reason || reason.trim().length < 5) {
       return res.status(400).json({ error: 'A reason is required (minimum 5 characters)' });
     }
 
-    await db.prepare('INSERT INTO reports (reporter_id, post_id, reason) VALUES (?, ?, ?)')
-      .run(res.locals.currentUser.id, post.id, reason.trim());
+    const reportCategory = (category || 'general').trim().toLowerCase().slice(0, 32) || 'general';
+    const priority = inferReportPriority(reason, res.locals.currentUser.trust_level);
+    const evidenceSnapshot = post.content ? post.content.slice(0, 500) : '';
+
+    const duplicate = await db.prepare(
+      "SELECT id FROM reports WHERE reporter_id = ? AND post_id = ? AND status IN ('pending', 'reviewed') LIMIT 1"
+    ).get(res.locals.currentUser.id, post.id);
+    if (duplicate) {
+      return res.status(409).json({ error: 'You already reported this post.' });
+    }
+
+    await db.prepare(
+      'INSERT INTO reports (reporter_id, post_id, reason, report_category, priority, workflow_state, evidence_snapshot) VALUES (?, ?, ?, ?, ?, ?, ?)'
+    ).run(res.locals.currentUser.id, post.id, reason.trim(), reportCategory, priority, 'new', evidenceSnapshot);
 
     res.json({ success: true });
   } catch (error) {
+    if (error.statusCode) {
+      return res.status(error.statusCode).json({ error: error.message });
+    }
     next(error);
   }
 });

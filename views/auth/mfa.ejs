@@ -1,0 +1,18 @@
+<%- include('../layout', { body: `
+<div class="auth-container">
+  <div class="auth-card">
+    <h1>Two-Factor Check</h1>
+    <p class="auth-subtitle">Enter the 6-digit code for <strong>${username}</strong></p>
+
+    ${error ? `<div class="alert alert-error">${error}</div>` : ''}
+
+    <form method="POST" action="/auth/mfa" class="auth-form">
+      <div class="form-group">
+        <label for="token">Authenticator Code or Backup Code</label>
+        <input type="text" id="token" name="token" required autofocus placeholder="123456 or ABCDE-12345">
+      </div>
+      <button type="submit" class="btn btn-primary btn-block">Verify</button>
+    </form>
+  </div>
+</div>
+` }) %>

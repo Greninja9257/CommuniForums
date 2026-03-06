@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { db } = require('../database');
 const { requireAuth } = require('../middleware/auth');
+const { requireCapability } = require('../middleware/permissions');
 const { blockBanned } = require('../middleware/moderation');
 const { scanFields, warningMessage } = require('../utils/profanity');
 
@@ -34,12 +35,18 @@ router.get('/', requireAuth, async (req, res, next) => {
   }
 });
 
-router.get('/new', requireAuth, blockBanned, (req, res) => {
+router.get('/new', requireAuth, blockBanned, requireCapability('canSendDirectMessage', {
+  message: 'Direct messages unlock at Basic trust level.',
+  redirectTo: '/messages'
+}), (req, res) => {
   const to = req.query.to || '';
   res.render('messages/compose', { title: 'New Message', to, error: null });
 });
 
-router.post('/send', requireAuth, blockBanned, async (req, res, next) => {
+router.post('/send', requireAuth, blockBanned, requireCapability('canSendDirectMessage', {
+  message: 'Direct messages unlock at Basic trust level.',
+  redirectTo: '/messages'
+}), async (req, res, next) => {
   try {
     const { to, content } = req.body;
 

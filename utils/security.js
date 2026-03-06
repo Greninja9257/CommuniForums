@@ -34,4 +34,15 @@ function safeRedirect(value, fallback = '/') {
   return trimmed;
 }
 
-module.exports = { escapeHtml, escapeAttr, escapeJs, safeRedirect };
+function validateStrongPassword(password) {
+  const value = String(password || '');
+  if (value.length < 10) {
+    return 'Password must be at least 10 characters.';
+  }
+  if (!/[a-z]/.test(value) || !/[A-Z]/.test(value) || !/[0-9]/.test(value)) {
+    return 'Password must include uppercase, lowercase, and a number.';
+  }
+  return null;
+}
+
+module.exports = { escapeHtml, escapeAttr, escapeJs, safeRedirect, validateStrongPassword };

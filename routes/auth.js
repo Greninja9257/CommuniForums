@@ -3,6 +3,46 @@ const bcrypt = require('bcryptjs');
 const router = express.Router();
 const { db } = require('../database');
 const { scanFields, warningMessage } = require('../utils/profanity');
+const { verifyTotpCode, hashBackupCode } = require('../utils/mfa');
+const { refreshTrustForUser } = require('../utils/trust');
+const { validateStrongPassword } = require('../utils/security');
+
+function parseBackupCodes(raw) {
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (err) {
+    return [];
+  }
+}
+
+async function recordSecurityEvent(req, eventType, userId = null, metadata = '') {
+  try {
+    const ip = req.ip || req.socket?.remoteAddress || null;
+    const userAgent = req.get('user-agent') || null;
+    await db.prepare(
+      'INSERT INTO user_security_events (user_id, event_type, ip, user_agent, metadata) VALUES (?, ?, ?, ?, ?)'
+    ).run(userId, eventType, ip, userAgent, metadata || null);
+  } catch (err) {
+    // Avoid blocking auth flow on logging issues.
+  }
+}
+
+async function regenerateSession(req) {
+  await new Promise((resolve, reject) => {
+    req.session.regenerate((err) => (err ? reject(err) : resolve()));
+  });
+}
+
+async function completeLogin(req, user, redirectPath) {
+  await regenerateSession(req);
+  req.session.userId = user.id;
+  await db.prepare('UPDATE users SET failed_login_attempts = 0, locked_until = NULL WHERE id = ?').run(user.id);
+  await refreshTrustForUser(user.id);
+  req.flash('success', `Welcome back, ${user.username}!`);
+  return redirectPath;
+}
 
 router.get('/register', (req, res) => {
   if (res.locals.currentUser) return res.redirect('/');
@@ -26,8 +66,9 @@ router.post('/register', async (req, res, next) => {
     if (usernameScan.flagged) {
       return res.render('auth/register', { title: 'Register', error: warningMessage(usernameScan) });
     }
-    if (password.length < 6) {
-      return res.render('auth/register', { title: 'Register', error: 'Password must be at least 6 characters.' });
+    const passwordError = validateStrongPassword(password);
+    if (passwordError) {
+      return res.render('auth/register', { title: 'Register', error: passwordError });
     }
     if (password !== confirm_password) {
       return res.render('auth/register', { title: 'Register', error: 'Passwords do not match.' });
@@ -42,6 +83,7 @@ router.post('/register', async (req, res, next) => {
     const result = await db.prepare(
       'INSERT INTO users (username, email, password_hash) VALUES (?, ?, ?)'
     ).run(username, email.toLowerCase(), passwordHash);
+    await refreshTrustForUser(result.lastInsertRowid);
 
     const userCount = (await db.prepare('SELECT COUNT(*)::int as c FROM users').get()).c;
     if (userCount <= 10) {
@@ -52,7 +94,9 @@ router.post('/register', async (req, res, next) => {
       }
     }
 
+    await regenerateSession(req);
     req.session.userId = result.lastInsertRowid;
+    await recordSecurityEvent(req, 'register_success', result.lastInsertRowid);
     req.flash('success', 'Welcome to CommuniForums! Your account has been created.');
     res.redirect('/');
   } catch (error) {
@@ -63,9 +107,10 @@ router.post('/register', async (req, res, next) => {
 router.get('/login', (req, res) => {
   if (res.locals.currentUser) return res.redirect('/');
   const banned = req.query.banned === '1';
+  const locked = req.query.locked === '1';
   res.render('auth/login', {
     title: 'Login',
-    error: banned ? 'Your account is currently suspended.' : null,
+    error: banned ? 'Your account is currently suspended.' : locked ? 'Too many failed logins. Your account is temporarily locked.' : null,
     redirect: res.locals.safeRedirect(req.query.redirect || '/')
   });
 });
@@ -80,11 +125,30 @@ router.post('/login', async (req, res, next) => {
 
     const user = await db.prepare('SELECT * FROM users WHERE username = ? OR email = ?').get(username, username.toLowerCase());
     if (!user) {
+      await recordSecurityEvent(req, 'login_failed_unknown', null, username);
       return res.render('auth/login', { title: 'Login', error: 'Invalid username or password.', redirect: res.locals.safeRedirect(redirect || '/') });
+    }
+
+    if (user.locked_until && new Date(user.locked_until) > new Date()) {
+      await recordSecurityEvent(req, 'login_blocked_locked', user.id);
+      return res.render('auth/login', {
+        title: 'Login',
+        error: `Account temporarily locked until ${new Date(user.locked_until).toLocaleString()}.`,
+        redirect: res.locals.safeRedirect(redirect || '/')
+      });
     }
 
     const valid = await bcrypt.compare(password, user.password_hash);
     if (!valid) {
+      const attempts = (user.failed_login_attempts || 0) + 1;
+      let lockUntil = null;
+      if (attempts >= 5) {
+        lockUntil = new Date(Date.now() + 15 * 60 * 1000).toISOString();
+      }
+      await db.prepare(
+        'UPDATE users SET failed_login_attempts = ?, locked_until = ? WHERE id = ?'
+      ).run(attempts, lockUntil, user.id);
+      await recordSecurityEvent(req, 'login_failed_password', user.id, `attempts=${attempts}`);
       return res.render('auth/login', { title: 'Login', error: 'Invalid username or password.', redirect: res.locals.safeRedirect(redirect || '/') });
     }
 
@@ -96,9 +160,80 @@ router.post('/login', async (req, res, next) => {
       });
     }
 
-    req.session.userId = user.id;
-    req.flash('success', `Welcome back, ${user.username}!`);
-    res.redirect(res.locals.safeRedirect(redirect || '/'));
+    if (user.mfa_enabled && user.mfa_secret) {
+      req.session.pendingMfaUserId = user.id;
+      req.session.pendingMfaRedirect = res.locals.safeRedirect(redirect || '/');
+      await recordSecurityEvent(req, 'mfa_challenge_started', user.id);
+      return res.redirect('/auth/mfa');
+    }
+
+    const destination = await completeLogin(req, user, res.locals.safeRedirect(redirect || '/'));
+    await recordSecurityEvent(req, 'login_success', user.id);
+    return res.redirect(destination);
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.get('/mfa', async (req, res, next) => {
+  try {
+    if (res.locals.currentUser) return res.redirect('/');
+    if (!req.session.pendingMfaUserId) return res.redirect('/auth/login');
+
+    const user = await db.prepare('SELECT id, username FROM users WHERE id = ?').get(req.session.pendingMfaUserId);
+    if (!user) {
+      delete req.session.pendingMfaUserId;
+      delete req.session.pendingMfaRedirect;
+      return res.redirect('/auth/login');
+    }
+
+    return res.render('auth/mfa', {
+      title: 'Two-Factor Authentication',
+      error: null,
+      username: user.username
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post('/mfa', async (req, res, next) => {
+  try {
+    if (!req.session.pendingMfaUserId) return res.redirect('/auth/login');
+    const token = (req.body.token || '').trim();
+    const user = await db.prepare('SELECT id, username, mfa_secret, mfa_backup_codes FROM users WHERE id = ?').get(req.session.pendingMfaUserId);
+    if (!user || !user.mfa_secret) return res.redirect('/auth/login');
+
+    let verified = verifyTotpCode(token, user.mfa_secret);
+    let usedBackup = false;
+    if (!verified) {
+      const hashes = parseBackupCodes(user.mfa_backup_codes);
+      const submittedHash = hashBackupCode(token);
+      const idx = hashes.indexOf(submittedHash);
+      if (idx !== -1) {
+        hashes.splice(idx, 1);
+        await db.prepare('UPDATE users SET mfa_backup_codes = ? WHERE id = ?').run(JSON.stringify(hashes), user.id);
+        verified = true;
+        usedBackup = true;
+      }
+    }
+
+    if (!verified) {
+      await recordSecurityEvent(req, 'mfa_failed', user.id);
+      return res.render('auth/mfa', {
+        title: 'Two-Factor Authentication',
+        error: 'Invalid authentication code.',
+        username: user.username
+      });
+    }
+
+    const redirectPath = res.locals.safeRedirect(req.session.pendingMfaRedirect || '/');
+    delete req.session.pendingMfaUserId;
+    delete req.session.pendingMfaRedirect;
+
+    const destination = await completeLogin(req, user, redirectPath);
+    await recordSecurityEvent(req, usedBackup ? 'mfa_success_backup' : 'mfa_success_totp', user.id);
+    return res.redirect(destination);
   } catch (error) {
     next(error);
   }
