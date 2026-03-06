@@ -9,7 +9,6 @@
   <div>
     <h1>${category.name}</h1>
     ${category.description ? `<p>${category.description}</p>` : ''}
-    ${isAggregateCategory ? `<p class="subcategory-label">This section includes threads from all sub-sections below.</p>` : ''}
   </div>
   ${currentUser ? `<a href="/forums/new-thread/${category.id}" class="btn btn-primary">+ New Thread</a>` : ''}
 </div>
