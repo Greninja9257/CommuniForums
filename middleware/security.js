@@ -30,14 +30,27 @@ function csrfOriginProtection(req, res, next) {
 
   const origin = req.get('origin');
   const referer = req.get('referer');
-  const host = req.get('host');
+  const forwardedHostRaw = req.get('x-forwarded-host');
+  const hostRaw = req.get('host');
 
   if (!origin && !referer) return next();
+
+  const normalizeHost = (value) => String(value || '').trim().toLowerCase().split(',')[0];
+  const stripPort = (value) => normalizeHost(value).split(':')[0];
+
+  const allowedHosts = new Set([
+    normalizeHost(forwardedHostRaw),
+    normalizeHost(hostRaw),
+    stripPort(forwardedHostRaw),
+    stripPort(hostRaw)
+  ].filter(Boolean));
 
   const matchesHost = (value) => {
     try {
       const url = new URL(value);
-      return url.host === host;
+      const urlHost = normalizeHost(url.host);
+      const urlHostname = stripPort(url.hostname);
+      return allowedHosts.has(urlHost) || allowedHosts.has(urlHostname);
     } catch (err) {
       return false;
     }
