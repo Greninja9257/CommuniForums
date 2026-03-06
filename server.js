@@ -12,6 +12,17 @@ async function start() {
   app.disable('x-powered-by');
   let dbReady = false;
 
+  function isLikelyInternalHealthProbe(req) {
+    if (req.method !== 'GET' || req.path !== '/') return false;
+    const remote = String(req.socket?.remoteAddress || '');
+    const ua = String(req.get('user-agent') || '').toLowerCase();
+    const accept = String(req.get('accept') || '').toLowerCase();
+    const isLoopback = remote.includes('127.0.0.1') || remote.includes('::1');
+    const isProbeUa = ua.includes('health') || ua.includes('kube') || ua.includes('go-http-client');
+    const isGenericAccept = accept === '*/*' || accept === '';
+    return isLoopback && (isProbeUa || isGenericAccept);
+  }
+
   app.set('view engine', 'ejs');
   app.set('views', path.join(__dirname, 'views'));
 
@@ -23,6 +34,14 @@ async function start() {
     res.locals.permissionLevel = 0;
     res.locals.capabilities = {};
     next();
+  });
+
+  // Replit health checks hit "/" very early. Serve a minimal 200 fast-path.
+  app.get('/', (req, res, next) => {
+    if (isLikelyInternalHealthProbe(req)) {
+      return res.status(200).type('text/plain').send('ok');
+    }
+    return next();
   });
 
   app.get('/health', (req, res) => {
