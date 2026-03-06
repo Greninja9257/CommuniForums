@@ -89,10 +89,6 @@
                   onclick="thankPost(event, ${post.id})" title="Thank this post">
                   Thank <span class="thank-count">${post.thanks_count}</span>
                 </button>
-                <button class="btn-action btn-thumbsdown ${post.userThumbedDown ? 'active' : ''}"
-                  onclick="thumbsDownPost(${post.id})" title="Send feedback to moderators">
-                  ${post.userThumbedDown ? 'Feedback Sent' : 'Send Feedback'}
-                </button>
               ` : `
                 <span class="btn-action disabled">Thanks ${post.thanks_count}</span>
               `}
@@ -171,38 +167,21 @@ ${currentUser && !thread.is_locked ? `
       <h3>Report Post</h3>
       <button class="modal-close" onclick="closeModal('report-modal')">&times;</button>
     </div>
+    <p class="modal-note">This is private and reviewed by moderators.</p>
     <form id="report-form">
       <div class="form-group">
-        <label>Reason for reporting:</label>
-        <textarea name="reason" rows="3" required placeholder="Explain why this post should be reviewed..."></textarea>
-      </div>
-      <button type="submit" class="btn btn-primary">Submit Report</button>
-    </form>
-  </div>
-</div>
-
-<!-- Thumbs Down Modal -->
-<div class="modal" id="thumbsdown-modal">
-  <div class="modal-content">
-    <div class="modal-header">
-      <h3>Send Feedback</h3>
-      <button class="modal-close" onclick="closeModal('thumbsdown-modal')">&times;</button>
-    </div>
-    <p class="modal-note">Provide context for moderators. This is private feedback and is not shown as a public score.</p>
-    <form id="thumbsdown-form">
-      <div class="form-group">
-        <label>Reason:</label>
-        <select name="reason-select" onchange="document.getElementById('td-reason').value = this.value">
+        <label>Reason category:</label>
+        <select name="reason-select" onchange="document.getElementById('report-reason').value = this.value">
           <option value="">Select a reason...</option>
-          <option value="Rude or disrespectful">Rude or disrespectful</option>
-          <option value="Incorrect information">Incorrect information</option>
-          <option value="Off-topic">Off-topic</option>
-          <option value="Spam">Spam</option>
-          <option value="Other">Other (specify below)</option>
+          <option value="Harassment or abusive language">Harassment or abusive language</option>
+          <option value="Spam or self-promotion">Spam or self-promotion</option>
+          <option value="Misinformation or unsafe advice">Misinformation or unsafe advice</option>
+          <option value="Off-topic or low quality">Off-topic or low quality</option>
+          <option value="Other">Other (write details below)</option>
         </select>
-        <textarea name="reason" id="td-reason" rows="2" required placeholder="Specify reason..." class="mt-2"></textarea>
+        <textarea id="report-reason" name="reason" rows="3" required placeholder="Explain what happened and include context..." class="mt-2"></textarea>
       </div>
-      <button type="submit" class="btn btn-danger">Submit</button>
+      <button type="submit" class="btn btn-primary">Submit</button>
     </form>
   </div>
 </div>

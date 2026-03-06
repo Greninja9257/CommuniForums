@@ -45,50 +45,6 @@ async function thankPost(evt, postId) {
   }
 }
 
-// ---- Thumbs Down Post ----
-let currentThumbsDownPostId = null;
-
-function thumbsDownPost(postId) {
-  currentThumbsDownPostId = postId;
-  openModal('thumbsdown-modal');
-}
-
-document.addEventListener('DOMContentLoaded', () => {
-  const tdForm = document.getElementById('thumbsdown-form');
-  if (tdForm) {
-    tdForm.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const reason = document.getElementById('td-reason').value.trim();
-      if (!reason || reason.length < 3) {
-        showToast('Please provide a reason (min 3 characters)', 'error');
-        return;
-      }
-      try {
-        const res = await fetch(`/forums/post/${currentThumbsDownPostId}/thumbs-down`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ reason })
-        });
-        const data = await res.json();
-        if (res.ok) {
-          const btn = document.querySelector(`.btn-thumbsdown[onclick="thumbsDownPost(${currentThumbsDownPostId})"]`);
-          if (btn) {
-            btn.classList.add('active');
-            btn.textContent = 'Feedback Sent';
-          }
-          closeModal('thumbsdown-modal');
-          tdForm.reset();
-          showToast('Feedback sent to moderators', 'success');
-        } else {
-          showToast(data.error || 'Error', 'error');
-        }
-      } catch (err) {
-        showToast('Something went wrong', 'error');
-      }
-    });
-  }
-});
-
 // ---- Report Post ----
 let currentReportPostId = null;
 

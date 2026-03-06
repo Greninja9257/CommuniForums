@@ -238,9 +238,6 @@ router.get('/thread/:id', async (req, res, next) => {
         post.userThanked = !!(await db.prepare(
           'SELECT 1 FROM thanks WHERE post_id = ? AND giver_id = ?'
         ).get(post.id, res.locals.currentUser.id));
-        post.userThumbedDown = !!(await db.prepare(
-          'SELECT 1 FROM thumbs_down WHERE post_id = ? AND giver_id = ?'
-        ).get(post.id, res.locals.currentUser.id));
       }
     }
 
@@ -475,36 +472,6 @@ router.post('/post/:id/thank', requireAuth, blockBanned, async (req, res, next) 
     await checkBadges(res.locals.currentUser.id);
 
     res.json({ thanked: true, count: post.thanks_count + 1 });
-  } catch (error) {
-    next(error);
-  }
-});
-
-router.post('/post/:id/thumbs-down', requireAuth, blockBanned, async (req, res, next) => {
-  try {
-    const post = await db.prepare('SELECT * FROM posts WHERE id = ?').get(req.params.id);
-    if (!post) return res.status(404).json({ error: 'Post not found' });
-    if (post.author_id === res.locals.currentUser.id) {
-      return res.status(400).json({ error: 'Cannot thumbs-down your own post' });
-    }
-
-    const { reason } = req.body;
-    if (!reason || reason.trim().length < 3) {
-      return res.status(400).json({ error: 'A reason is required (minimum 3 characters)' });
-    }
-
-    const existing = await db.prepare('SELECT 1 FROM thumbs_down WHERE post_id = ? AND giver_id = ?')
-      .get(post.id, res.locals.currentUser.id);
-    if (existing) {
-      return res.status(400).json({ error: 'Feedback already submitted for this post' });
-    }
-
-    await db.prepare('INSERT INTO thumbs_down (post_id, giver_id, receiver_id, reason) VALUES (?, ?, ?, ?)')
-      .run(post.id, res.locals.currentUser.id, post.author_id, reason.trim());
-
-    res.json({
-      success: true
-    });
   } catch (error) {
     next(error);
   }
