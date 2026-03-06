@@ -236,7 +236,14 @@ router.get('/category/:id', async (req, res, next) => {
     const category = await db.prepare('SELECT * FROM categories WHERE id = ?').get(req.params.id);
     if (!category) return res.status(404).render('error', { title: 'Not Found', message: 'Category not found.' });
 
-    const subcategories = await db.prepare('SELECT * FROM categories WHERE parent_id = ? ORDER BY display_order').all(category.id);
+    const subcategories = await db.prepare(`
+      SELECT c.*,
+        (SELECT COUNT(*)::int FROM threads t WHERE t.category_id = c.id) as thread_count,
+        (SELECT COUNT(*)::int FROM posts p JOIN threads t ON p.thread_id = t.id WHERE t.category_id = c.id) as post_count
+      FROM categories c
+      WHERE c.parent_id = ?
+      ORDER BY c.display_order
+    `).all(category.id);
 
     const totalThreads = (await db.prepare('SELECT COUNT(*)::int as c FROM threads WHERE category_id = ?').get(category.id)).c;
     const totalPages = Math.ceil(totalThreads / perPage);

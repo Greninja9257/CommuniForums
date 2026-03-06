@@ -36,15 +36,15 @@ ${!currentUser ? `
       </div>
 
       ${cat.subcategories && cat.subcategories.length > 0 ? `
-        <div class="subcategory-list">
+        <div class="subcategory-grid">
           ${cat.subcategories.map(sub => `
-            <a href="/forums/category/${sub.id}" class="subcategory-item">
+            <a href="/forums/category/${sub.id}" class="subcategory-card">
               <span class="subcategory-icon">${(sub.icon && sub.icon.trim()) ? sub.icon.trim() : sub.name.charAt(0).toUpperCase()}</span>
-              <span class="subcategory-info">
+              <span class="subcategory-card-info">
                 <strong>${sub.name}</strong>
                 ${sub.description ? `<span>${sub.description}</span>` : ''}
               </span>
-              <span class="subcategory-stats">
+              <span class="subcategory-card-stats">
                 <span>${sub.thread_count || 0} threads</span>
                 <span>${sub.post_count || 0} posts</span>
               </span>

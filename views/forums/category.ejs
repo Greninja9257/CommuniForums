@@ -20,10 +20,20 @@
 </div>
 
 ${subcategories.length > 0 ? `
-  <div class="subcategory-bar">
-    ${subcategories.map(sub => `
-      <a href="/forums/category/${sub.id}" class="subcategory-chip">${sub.name}</a>
-    `).join('')}
+  <div class="subcategory-panel">
+    <div class="subcategory-panel-title">Sub-sections</div>
+    <div class="subcategory-inline-grid">
+      ${subcategories.map(sub => `
+        <a href="/forums/category/${sub.id}" class="subcategory-inline-card">
+          <span class="subcategory-icon">${(sub.icon && sub.icon.trim()) ? sub.icon.trim() : sub.name.charAt(0).toUpperCase()}</span>
+          <span class="subcategory-inline-info">
+            <strong>${sub.name}</strong>
+            ${sub.description ? `<span>${sub.description}</span>` : ''}
+          </span>
+          <span class="subcategory-inline-stats">${sub.thread_count || 0}t · ${sub.post_count || 0}p</span>
+        </a>
+      `).join('')}
+    </div>
   </div>
 ` : ''}
 
