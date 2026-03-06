@@ -90,8 +90,8 @@
                   Thank <span class="thank-count">${post.thanks_count}</span>
                 </button>
                 <button class="btn-action btn-thumbsdown ${post.userThumbedDown ? 'active' : ''}"
-                  onclick="thumbsDownPost(${post.id})" title="Thumbs down (requires reason)">
-                  Downvote <span class="td-count">${post.thumbs_down_count}</span>
+                  onclick="thumbsDownPost(${post.id})" title="Send feedback to moderators">
+                  ${post.userThumbedDown ? 'Feedback Sent' : 'Send Feedback'}
                 </button>
               ` : `
                 <span class="btn-action disabled">Thanks ${post.thanks_count}</span>
@@ -185,10 +185,10 @@ ${currentUser && !thread.is_locked ? `
 <div class="modal" id="thumbsdown-modal">
   <div class="modal-content">
     <div class="modal-header">
-      <h3>Downvote Post</h3>
+      <h3>Send Feedback</h3>
       <button class="modal-close" onclick="closeModal('thumbsdown-modal')">&times;</button>
     </div>
-    <p class="modal-note">Please provide a reason. Excessive thumbs down on a user may result in temporary suspension for them.</p>
+    <p class="modal-note">Provide context for moderators. This is private feedback and is not shown as a public score.</p>
     <form id="thumbsdown-form">
       <div class="form-group">
         <label>Reason:</label>

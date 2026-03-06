@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { db, transaction, getRank, getEffectiveRank } = require('../database');
 const { requireAuth } = require('../middleware/auth');
-const { blockBanned, checkAutoBan } = require('../middleware/moderation');
+const { blockBanned } = require('../middleware/moderation');
 const { marked } = require('marked');
 const { JSDOM } = require('jsdom');
 const createDOMPurify = require('dompurify');
@@ -496,19 +496,14 @@ router.post('/post/:id/thumbs-down', requireAuth, blockBanned, async (req, res, 
     const existing = await db.prepare('SELECT 1 FROM thumbs_down WHERE post_id = ? AND giver_id = ?')
       .get(post.id, res.locals.currentUser.id);
     if (existing) {
-      return res.status(400).json({ error: 'Already thumbs-downed' });
+      return res.status(400).json({ error: 'Feedback already submitted for this post' });
     }
 
     await db.prepare('INSERT INTO thumbs_down (post_id, giver_id, receiver_id, reason) VALUES (?, ?, ?, ?)')
       .run(post.id, res.locals.currentUser.id, post.author_id, reason.trim());
-    await db.prepare('UPDATE posts SET thumbs_down_count = thumbs_down_count + 1 WHERE id = ?').run(post.id);
-
-    const banResult = await checkAutoBan(post.author_id);
 
     res.json({
-      success: true,
-      count: post.thumbs_down_count + 1,
-      autoBanned: banResult.banned
+      success: true
     });
   } catch (error) {
     next(error);

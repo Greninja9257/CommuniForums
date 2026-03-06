@@ -71,11 +71,14 @@ document.addEventListener('DOMContentLoaded', () => {
         });
         const data = await res.json();
         if (res.ok) {
+          const btn = document.querySelector(`.btn-thumbsdown[onclick="thumbsDownPost(${currentThumbsDownPostId})"]`);
+          if (btn) {
+            btn.classList.add('active');
+            btn.textContent = 'Feedback Sent';
+          }
           closeModal('thumbsdown-modal');
           tdForm.reset();
-          showToast('Feedback submitted', 'success');
-          // Refresh page to update counts
-          setTimeout(() => location.reload(), 500);
+          showToast('Feedback sent to moderators', 'success');
         } else {
           showToast(data.error || 'Error', 'error');
         }
