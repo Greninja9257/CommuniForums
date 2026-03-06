@@ -1,10 +1,7 @@
 const { Pool } = require('pg');
 
 const DATABASE_URL = process.env.DATABASE_URL;
-
-if (!DATABASE_URL) {
-  throw new Error('DATABASE_URL is required. Point this to your Replit SQL/Postgres instance.');
-}
+const hasDatabaseConfig = !!DATABASE_URL;
 
 function normalizeConnectionString(rawUrl) {
   try {
@@ -20,17 +17,21 @@ function normalizeConnectionString(rawUrl) {
   }
 }
 
-const normalizedDatabaseUrl = normalizeConnectionString(DATABASE_URL);
+const normalizedDatabaseUrl = hasDatabaseConfig ? normalizeConnectionString(DATABASE_URL) : null;
 
-const pool = new Pool({
-  connectionString: normalizedDatabaseUrl,
-  ssl: process.env.PGSSLMODE === 'disable' ? false : { rejectUnauthorized: false }
-});
+const pool = hasDatabaseConfig
+  ? new Pool({
+    connectionString: normalizedDatabaseUrl,
+    ssl: process.env.PGSSLMODE === 'disable' ? false : { rejectUnauthorized: false }
+  })
+  : null;
 
-pool.on('error', (err) => {
-  // Prevent process crash when provider restarts/terminates idle connections.
-  console.error('Postgres pool error (recoverable):', err.message);
-});
+if (pool) {
+  pool.on('error', (err) => {
+    // Prevent process crash when provider restarts/terminates idle connections.
+    console.error('Postgres pool error (recoverable):', err.message);
+  });
+}
 
 function convertPlaceholders(sql) {
   let index = 0;
@@ -83,6 +84,9 @@ function makeDb(client = pool) {
     },
 
     async query(sql, params = []) {
+      if (!client) {
+        throw new Error('Database is not configured. Set DATABASE_URL.');
+      }
       return client.query(normalizeSql(sql), params);
     },
 
@@ -117,6 +121,9 @@ function makeDb(client = pool) {
 const db = makeDb(pool);
 
 async function transaction(handler) {
+  if (!pool) {
+    throw new Error('Database is not configured. Set DATABASE_URL.');
+  }
   const client = await pool.connect();
   const txDb = makeDb(client);
   try {
@@ -133,6 +140,9 @@ async function transaction(handler) {
 }
 
 async function initialize() {
+  if (!pool) {
+    throw new Error('DATABASE_URL is required. Point this to your Replit SQL/Postgres instance.');
+  }
   await db.exec(`
     CREATE TABLE IF NOT EXISTS users (
       id SERIAL PRIMARY KEY,
@@ -531,6 +541,7 @@ function isHighestRank(user) {
 module.exports = {
   db,
   pool,
+  hasDatabaseConfig,
   transaction,
   initialize,
   getRank,

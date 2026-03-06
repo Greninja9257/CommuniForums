@@ -2,7 +2,7 @@ const express = require('express');
 const session = require('express-session');
 const PgSession = require('connect-pg-simple')(session);
 const path = require('path');
-const { initialize, pool, getEffectiveRank, isHighestRank, db } = require('./database');
+const { initialize, pool, hasDatabaseConfig, getEffectiveRank, isHighestRank, db } = require('./database');
 const { escapeHtml, escapeAttr, escapeJs, safeRedirect } = require('./utils/security');
 const { configureSecurity, authLimiter, writeLimiter } = require('./middleware/security');
 
@@ -42,12 +42,7 @@ async function start() {
   app.use(express.urlencoded({ extended: true }));
   app.use(express.json());
 
-  app.use(session({
-    store: new PgSession({
-      pool,
-      tableName: 'user_sessions',
-      createTableIfMissing: true
-    }),
+  const sessionOptions = {
     secret: process.env.SESSION_SECRET || 'communiforums-secret-key-change-in-production',
     resave: false,
     saveUninitialized: false,
@@ -57,7 +52,17 @@ async function start() {
       sameSite: 'lax',
       secure: process.env.NODE_ENV === 'production'
     }
-  }));
+  };
+  if (hasDatabaseConfig && pool) {
+    sessionOptions.store = new PgSession({
+      pool,
+      tableName: 'user_sessions',
+      createTableIfMissing: true
+    });
+  } else {
+    console.warn('DATABASE_URL missing: using in-memory session store until configured.');
+  }
+  app.use(session(sessionOptions));
 
   app.use((req, res, next) => {
     res.locals.flash = req.session.flash || {};
@@ -198,6 +203,10 @@ async function start() {
   });
 
   async function attemptInit() {
+    if (!hasDatabaseConfig) {
+      dbReady = false;
+      return;
+    }
     try {
       await initialize();
       dbReady = true;
