@@ -68,7 +68,7 @@
           <span class="post-number">#${(page - 1) * 15 + index + 1}</span>
         </div>
         <div class="post-content">${post.content_html}</div>
-        ${post.author_id === currentUser.id || ['moderator', 'admin'].includes(currentUser.role) ? `
+        ${currentUser && (post.author_id === currentUser.id || ['moderator', 'admin'].includes(currentUser.role)) ? `
           <form method="POST" action="/forums/post/${post.id}/edit" class="post-inline-edit" id="post-edit-${post.id}">
             <div class="form-group">
               <label for="edit-content-${post.id}">Edit Content</label>
