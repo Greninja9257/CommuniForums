@@ -12,6 +12,7 @@ const { refreshTrustForUser } = require('../utils/trust');
 
 const window = new JSDOM('').window;
 const DOMPurify = createDOMPurify(window);
+let engagementTablesReady = false;
 
 marked.setOptions({ breaks: true, gfm: true });
 
@@ -114,6 +115,31 @@ function normalizeCategorySort(value) {
   const sort = String(value || 'hot').toLowerCase();
   if (['hot', 'new', 'top'].includes(sort)) return sort;
   return 'hot';
+}
+
+async function ensureEngagementTables() {
+  if (engagementTablesReady) return;
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS saved_posts (
+      id SERIAL PRIMARY KEY,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      post_id INTEGER NOT NULL REFERENCES posts(id) ON DELETE CASCADE,
+      created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(user_id, post_id)
+    );
+    CREATE TABLE IF NOT EXISTS thread_subscriptions (
+      id SERIAL PRIMARY KEY,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      thread_id INTEGER NOT NULL REFERENCES threads(id) ON DELETE CASCADE,
+      created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(user_id, thread_id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_saved_posts_user ON saved_posts(user_id, created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_saved_posts_post ON saved_posts(post_id);
+    CREATE INDEX IF NOT EXISTS idx_thread_sub_user ON thread_subscriptions(user_id);
+    CREATE INDEX IF NOT EXISTS idx_thread_sub_thread ON thread_subscriptions(thread_id);
+  `);
+  engagementTablesReady = true;
 }
 
 router.get('/', async (req, res, next) => {
@@ -237,6 +263,7 @@ router.get('/category/:id', async (req, res, next) => {
 
 router.get('/thread/:id', async (req, res, next) => {
   try {
+    await ensureEngagementTables();
     const page = Math.max(1, parseInt(req.query.page, 10) || 1);
     const perPage = 15;
     const offset = (page - 1) * perPage;
@@ -390,6 +417,7 @@ router.post('/new-thread/:categoryId', requireAuth, blockBanned, async (req, res
 
 router.post('/thread/:id/reply', requireAuth, blockBanned, async (req, res, next) => {
   try {
+    await ensureEngagementTables();
     const { content } = req.body;
     const thread = await db.prepare('SELECT * FROM threads WHERE id = ?').get(req.params.id);
 
@@ -570,6 +598,7 @@ router.post('/post/:id/thank', requireAuth, blockBanned, async (req, res, next) 
 
 router.post('/post/:id/save', requireAuth, blockBanned, async (req, res, next) => {
   try {
+    await ensureEngagementTables();
     const post = await db.prepare('SELECT id FROM posts WHERE id = ?').get(req.params.id);
     if (!post) return res.status(404).json({ error: 'Post not found' });
 
@@ -594,6 +623,7 @@ router.post('/post/:id/save', requireAuth, blockBanned, async (req, res, next) =
 
 router.post('/thread/:id/subscribe', requireAuth, blockBanned, async (req, res, next) => {
   try {
+    await ensureEngagementTables();
     const thread = await db.prepare('SELECT id FROM threads WHERE id = ?').get(req.params.id);
     if (!thread) return res.status(404).json({ error: 'Thread not found' });
 
