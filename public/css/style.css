@@ -665,7 +665,6 @@ input, textarea, select, button { font-family: inherit; font-size: inherit; }
   min-height: 220px;
   padding: 12px 14px;
   border: 0;
-  border-top: 1px solid var(--gray-100);
   font-family: inherit;
   font-size: 0.95rem;
   line-height: 1.6;

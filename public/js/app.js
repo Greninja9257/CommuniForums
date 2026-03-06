@@ -89,7 +89,9 @@ function initRichEditors() {
     wrapper.appendChild(textarea);
 
     let mode = 'visual';
+    const originalRequired = !!textarea.required;
     textarea.classList.add('rich-editor-markdown-hidden');
+    textarea.required = false;
 
     const autoResizeMarkdown = () => {
       textarea.style.height = 'auto';
@@ -108,6 +110,8 @@ function initRichEditors() {
         visual.style.display = 'block';
         visualBtn.classList.add('btn-primary');
         mdBtn.classList.remove('btn-primary');
+        textarea.required = false;
+        textarea.setCustomValidity('');
       } else {
         textarea.value = htmlToMarkdown(visual);
         textarea.classList.remove('rich-editor-markdown-hidden');
@@ -115,6 +119,8 @@ function initRichEditors() {
         visual.style.display = 'none';
         mdBtn.classList.add('btn-primary');
         visualBtn.classList.remove('btn-primary');
+        textarea.required = originalRequired;
+        textarea.setCustomValidity('');
         autoResizeMarkdown();
       }
     };
@@ -246,8 +252,17 @@ function initRichEditors() {
 
     const form = textarea.closest('form');
     if (form) {
-      form.addEventListener('submit', () => {
-        textarea.value = mode === 'visual' ? htmlToMarkdown(visual) : textarea.value;
+      form.addEventListener('submit', (e) => {
+        if (mode === 'visual') {
+          textarea.value = htmlToMarkdown(visual);
+          if (originalRequired && !textarea.value.trim()) {
+            e.preventDefault();
+            showToast('Please enter some content before posting.', 'error');
+            visual.focus();
+            return;
+          }
+        }
+        textarea.setCustomValidity('');
       });
     }
 
