@@ -332,6 +332,14 @@ async function initialize() {
       created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
     );
 
+    -- Session table used by connect-pg-simple. Keep this in managed schema
+    -- so external migration generators do not attempt to drop it.
+    CREATE TABLE IF NOT EXISTS user_sessions (
+      sid VARCHAR PRIMARY KEY,
+      sess JSON NOT NULL,
+      expire TIMESTAMPTZ NOT NULL
+    );
+
     CREATE INDEX IF NOT EXISTS idx_threads_category ON threads(category_id);
     CREATE INDEX IF NOT EXISTS idx_threads_author ON threads(author_id);
     CREATE INDEX IF NOT EXISTS idx_threads_last_post ON threads(last_post_at DESC);
@@ -350,6 +358,7 @@ async function initialize() {
     CREATE INDEX IF NOT EXISTS idx_reports_assignee ON reports(assigned_mod_id);
     CREATE INDEX IF NOT EXISTS idx_users_trust_level ON users(trust_level, trust_score DESC);
     CREATE INDEX IF NOT EXISTS idx_security_events_user ON user_security_events(user_id, created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_user_sessions_expire ON user_sessions(expire);
   `);
 
   const badgeCount = await db.get('SELECT COUNT(*)::int as count FROM badges');
