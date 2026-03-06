@@ -48,7 +48,13 @@ async function attachUser(req, res, next) {
     res.locals.permissionLevel = res.locals.permissionLevel || 0;
     next();
   } catch (error) {
-    next(error);
+    // Allow read-only pages (and health checks) to keep working during transient DB outages.
+    res.locals.currentUser = null;
+    res.locals.unreadNotifications = 0;
+    res.locals.unreadMessages = 0;
+    res.locals.capabilities = {};
+    res.locals.permissionLevel = 0;
+    next();
   }
 }
 

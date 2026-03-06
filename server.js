@@ -7,11 +7,10 @@ const { escapeHtml, escapeAttr, escapeJs, safeRedirect } = require('./utils/secu
 const { configureSecurity, authLimiter, writeLimiter } = require('./middleware/security');
 
 async function start() {
-  await initialize();
-
   const app = express();
   const PORT = process.env.PORT || 3000;
   app.disable('x-powered-by');
+  let dbReady = false;
 
   app.set('view engine', 'ejs');
   app.set('views', path.join(__dirname, 'views'));
@@ -35,12 +34,7 @@ async function start() {
   });
 
   app.get('/ready', async (req, res) => {
-    try {
-      await db.get('SELECT 1 as ok');
-      res.status(200).json({ ok: true, db: true });
-    } catch (err) {
-      res.status(503).json({ ok: false, db: false });
-    }
+    res.status(dbReady ? 200 : 503).json({ ok: dbReady, db: dbReady });
   });
 
   configureSecurity(app);
@@ -167,7 +161,20 @@ async function start() {
 
       res.render('home', { categories, stats, featuredMessage });
     } catch (err) {
-      next(err);
+      // Keep homepage available for platform health checks during transient DB outages.
+      res.render('home', {
+        categories: [],
+        stats: {
+          totalUsers: 0,
+          totalThreads: 0,
+          totalPosts: 0,
+          totalThanks: 0,
+          newestUser: null,
+          recentThreads: [],
+          topContributors: []
+        },
+        featuredMessage: 'Service is warming up. Please refresh in a moment.'
+      });
     }
   });
 
@@ -189,6 +196,20 @@ async function start() {
   app.listen(PORT, () => {
     console.log(`CommuniForums running at http://localhost:${PORT}`);
   });
+
+  async function attemptInit() {
+    try {
+      await initialize();
+      dbReady = true;
+      console.log('Database initialization successful.');
+    } catch (err) {
+      dbReady = false;
+      console.error('Database initialization failed, retrying in 5s:', err.message);
+      setTimeout(attemptInit, 5000);
+    }
+  }
+
+  attemptInit();
 }
 
 start().catch((err) => {
