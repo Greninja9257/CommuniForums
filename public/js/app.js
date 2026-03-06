@@ -132,6 +132,23 @@ function initRichEditors() {
       });
     });
 
+    // Normalize pasted content to editor-native formatting instead of importing external styles.
+    visual.addEventListener('paste', (e) => {
+      e.preventDefault();
+      const clipboard = e.clipboardData || window.clipboardData;
+      const text = clipboard ? (clipboard.getData('text/plain') || '') : '';
+      const normalized = String(text).replace(/\r\n/g, '\n');
+
+      if (document.queryCommandSupported && document.queryCommandSupported('insertText')) {
+        document.execCommand('insertText', false, normalized);
+      } else {
+        const selection = window.getSelection();
+        if (!selection || selection.rangeCount === 0) return;
+        selection.deleteFromDocument();
+        selection.getRangeAt(0).insertNode(document.createTextNode(normalized));
+      }
+    });
+
     const form = textarea.closest('form');
     if (form) {
       form.addEventListener('submit', () => {
