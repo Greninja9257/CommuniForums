@@ -132,21 +132,108 @@ function initRichEditors() {
       });
     });
 
-    // Normalize pasted content to editor-native formatting instead of importing external styles.
+    function normalizePlainText(text) {
+      return String(text || '').replace(/\r\n/g, '\n');
+    }
+
+    function insertTextAtCursor(text) {
+      const normalized = normalizePlainText(text);
+      if (document.queryCommandSupported && document.queryCommandSupported('insertText')) {
+        document.execCommand('insertText', false, normalized);
+        return;
+      }
+      const selection = window.getSelection();
+      if (!selection || selection.rangeCount === 0) return;
+      selection.deleteFromDocument();
+      selection.getRangeAt(0).insertNode(document.createTextNode(normalized));
+    }
+
+    function insertHtmlAtCursor(html) {
+      if (document.queryCommandSupported && document.queryCommandSupported('insertHTML')) {
+        document.execCommand('insertHTML', false, html);
+        return;
+      }
+      const selection = window.getSelection();
+      if (!selection || selection.rangeCount === 0) return;
+      const range = selection.getRangeAt(0);
+      range.deleteContents();
+      const tpl = document.createElement('template');
+      tpl.innerHTML = html;
+      range.insertNode(tpl.content);
+    }
+
+    function sanitizePastedHtml(rawHtml) {
+      const allowedTags = new Set([
+        'p', 'br', 'strong', 'b', 'em', 'i', 'u', 's',
+        'code', 'pre', 'blockquote',
+        'ul', 'ol', 'li',
+        'h1', 'h2', 'h3', 'h4',
+        'a'
+      ]);
+      const blockedTags = new Set([
+        'script', 'style', 'iframe', 'object', 'embed', 'svg', 'math',
+        'meta', 'link', 'form', 'input', 'button', 'textarea', 'select'
+      ]);
+
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(rawHtml, 'text/html');
+
+      const cleanNode = (node) => {
+        if (node.nodeType === Node.TEXT_NODE) {
+          return document.createTextNode(node.nodeValue || '');
+        }
+        if (node.nodeType !== Node.ELEMENT_NODE) {
+          return document.createDocumentFragment();
+        }
+
+        const tag = node.tagName.toLowerCase();
+        if (blockedTags.has(tag)) {
+          return document.createDocumentFragment();
+        }
+
+        const children = Array.from(node.childNodes).map(cleanNode);
+
+        if (!allowedTags.has(tag)) {
+          const fragment = document.createDocumentFragment();
+          children.forEach((child) => fragment.appendChild(child));
+          return fragment;
+        }
+
+        const el = document.createElement(tag);
+        if (tag === 'a') {
+          const href = String(node.getAttribute('href') || '').trim();
+          if (/^(https?:\/\/|mailto:)/i.test(href)) {
+            el.setAttribute('href', href);
+            el.setAttribute('target', '_blank');
+            el.setAttribute('rel', 'noopener noreferrer');
+          }
+        }
+        children.forEach((child) => el.appendChild(child));
+        return el;
+      };
+
+      const wrapper = document.createElement('div');
+      Array.from(doc.body.childNodes).forEach((node) => {
+        wrapper.appendChild(cleanNode(node));
+      });
+      return wrapper.innerHTML;
+    }
+
+    // Keep useful formatting, strip unsafe/invalid external markup.
     visual.addEventListener('paste', (e) => {
       e.preventDefault();
       const clipboard = e.clipboardData || window.clipboardData;
+      const html = clipboard ? (clipboard.getData('text/html') || '') : '';
       const text = clipboard ? (clipboard.getData('text/plain') || '') : '';
-      const normalized = String(text).replace(/\r\n/g, '\n');
 
-      if (document.queryCommandSupported && document.queryCommandSupported('insertText')) {
-        document.execCommand('insertText', false, normalized);
-      } else {
-        const selection = window.getSelection();
-        if (!selection || selection.rangeCount === 0) return;
-        selection.deleteFromDocument();
-        selection.getRangeAt(0).insertNode(document.createTextNode(normalized));
+      if (html) {
+        const sanitizedHtml = sanitizePastedHtml(html).trim();
+        if (sanitizedHtml) {
+          insertHtmlAtCursor(sanitizedHtml);
+          return;
+        }
       }
+      insertTextAtCursor(text);
     });
 
     const form = textarea.closest('form');
