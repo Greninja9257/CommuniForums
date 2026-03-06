@@ -16,6 +16,16 @@ async function start() {
   app.set('view engine', 'ejs');
   app.set('views', path.join(__dirname, 'views'));
 
+  // Ensure shared templates always have baseline locals, even on early errors.
+  app.use((req, res, next) => {
+    res.locals.currentUser = null;
+    res.locals.unreadNotifications = 0;
+    res.locals.unreadMessages = 0;
+    res.locals.permissionLevel = 0;
+    res.locals.capabilities = {};
+    next();
+  });
+
   configureSecurity(app);
   app.use(express.static(path.join(__dirname, 'public')));
   app.use(express.urlencoded({ extended: true }));
