@@ -19,37 +19,40 @@
       <span>&middot; ${totalPosts - 1} replies</span>
     </div>
   </div>
-  ${currentUser && (currentUser.role === 'moderator' || currentUser.role === 'admin') ? `
-    <div class="thread-mod-actions">
-      <form method="POST" action="/forums/thread/${thread.id}/pin" style="display:inline">
-        <button class="btn btn-sm">${thread.is_pinned ? 'Unpin' : 'Pin'}</button>
-      </form>
-      <form method="POST" action="/forums/thread/${thread.id}/lock" style="display:inline">
-        <button class="btn btn-sm">${thread.is_locked ? 'Unlock' : 'Lock'}</button>
-      </form>
-      <form method="POST" action="/forums/thread/${thread.id}/solve" style="display:inline">
-        <button class="btn btn-sm">${thread.is_solved ? 'Unsolve' : 'Mark Solved'}</button>
-      </form>
-    </div>
-  ` : (currentUser && currentUser.id === thread.author_id ? `
-    <div class="thread-mod-actions">
-      <form method="POST" action="/forums/thread/${thread.id}/solve" style="display:inline">
-        <button class="btn btn-sm">${thread.is_solved ? 'Unsolve' : 'Mark Solved'}</button>
-      </form>
-    </div>
-  ` : '')}
-  ${currentUser ? `
-    <div class="thread-mod-actions">
-      <button type="button" class="btn btn-sm ${threadUserSubscribed ? 'btn-primary' : ''}"
-        onclick="toggleThreadSubscription(${thread.id}, this)">
-        ${threadUserSubscribed ? 'Subscribed' : 'Follow Thread'}
-      </button>
-    </div>
-  ` : `
-    <div class="thread-mod-actions">
-      <a href="/auth/register" class="btn btn-sm btn-primary">Join to Follow</a>
-    </div>
-  `}
+  <div class="thread-header-actions">
+    ${currentUser && (currentUser.role === 'moderator' || currentUser.role === 'admin') ? `
+      <div class="thread-mod-actions">
+        <form method="POST" action="/forums/thread/${thread.id}/pin" style="display:inline">
+          <button class="btn btn-sm">${thread.is_pinned ? 'Unpin' : 'Pin'}</button>
+        </form>
+        <form method="POST" action="/forums/thread/${thread.id}/lock" style="display:inline">
+          <button class="btn btn-sm">${thread.is_locked ? 'Unlock' : 'Lock'}</button>
+        </form>
+        <form method="POST" action="/forums/thread/${thread.id}/solve" style="display:inline">
+          <button class="btn btn-sm">${thread.is_solved ? 'Unsolve' : 'Mark Solved'}</button>
+        </form>
+      </div>
+    ` : (currentUser && currentUser.id === thread.author_id ? `
+      <div class="thread-mod-actions">
+        <form method="POST" action="/forums/thread/${thread.id}/solve" style="display:inline">
+          <button class="btn btn-sm">${thread.is_solved ? 'Unsolve' : 'Mark Solved'}</button>
+        </form>
+      </div>
+    ` : '')}
+
+    ${currentUser ? `
+      <div class="thread-mod-actions">
+        <button type="button" class="btn btn-sm ${threadUserSubscribed ? 'btn-primary' : ''}"
+          onclick="toggleThreadSubscription(${thread.id}, this)">
+          ${threadUserSubscribed ? 'Subscribed' : 'Follow Thread'}
+        </button>
+      </div>
+    ` : `
+      <div class="thread-mod-actions">
+        <a href="/auth/register" class="btn btn-sm btn-primary">Join to Follow</a>
+      </div>
+    `}
+  </div>
 </div>
 
 <div class="posts-container">

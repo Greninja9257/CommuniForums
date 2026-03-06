@@ -485,6 +485,14 @@ input, textarea, select, button { font-family: inherit; font-size: inherit; }
 }
 .thread-header h1 { font-size: 1.5rem; margin-bottom: 8px; }
 .thread-header-meta { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; font-size: 0.85rem; color: var(--text-secondary); }
+.thread-header-actions {
+  margin-left: auto;
+  display: flex;
+  justify-content: flex-end;
+  align-items: flex-start;
+  gap: 8px;
+  flex-wrap: wrap;
+}
 .thread-mod-actions { display: flex; gap: 6px; flex-shrink: 0; }
 
 .posts-container { display: flex; flex-direction: column; gap: 16px; margin-bottom: 24px; }
