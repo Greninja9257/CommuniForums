@@ -16,8 +16,22 @@ async function start() {
   function isLikelyInternalHealthProbe(req) {
     if (!['GET', 'HEAD'].includes(req.method) || req.path !== '/') return false;
     const remote = String(req.socket?.remoteAddress || '');
+    const forwardedFor = String(req.get('x-forwarded-for') || '').trim();
+    const ua = String(req.get('user-agent') || '').toLowerCase();
+    const accept = String(req.get('accept') || '').toLowerCase();
     const isLoopback = remote.includes('127.0.0.1') || remote.includes('::1');
-    return isLoopback;
+    const forwardedFirst = forwardedFor ? forwardedFor.split(',')[0].trim() : '';
+    const forwardedLooksLoopback = !forwardedFirst ||
+      forwardedFirst === '127.0.0.1' ||
+      forwardedFirst === '::1' ||
+      forwardedFirst === 'localhost';
+    const looksLikeProbeClient =
+      ua.includes('health') ||
+      ua.includes('kube') ||
+      ua.includes('go-http-client') ||
+      accept === '*/*' ||
+      accept === '';
+    return isLoopback && forwardedLooksLoopback && looksLikeProbeClient;
   }
 
   app.set('view engine', 'ejs');
