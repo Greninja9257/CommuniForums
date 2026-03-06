@@ -1,6 +1,7 @@
 const express = require('express');
 const session = require('express-session');
 const PgSession = require('connect-pg-simple')(session);
+const FileStore = require('session-file-store')(session);
 const path = require('path');
 const { initialize, pool, hasDatabaseConfig, getEffectiveRank, isHighestRank, db } = require('./database');
 const { escapeHtml, escapeAttr, escapeJs, safeRedirect } = require('./utils/security');
@@ -79,7 +80,14 @@ async function start() {
       createTableIfMissing: true
     });
   } else {
-    console.warn('DATABASE_URL missing: using in-memory session store until configured.');
+    // Persistent fallback so restarts do not wipe all sessions.
+    sessionOptions.store = new FileStore({
+      path: path.join(__dirname, '.sessions'),
+      ttl: 30 * 24 * 60 * 60,
+      retries: 1,
+      reapInterval: 60 * 60
+    });
+    console.warn('DATABASE_URL missing: using file-backed session store fallback.');
   }
   app.use(session(sessionOptions));
 
