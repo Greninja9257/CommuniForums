@@ -252,7 +252,6 @@ router.post('/guest', async (req, res, next) => {
     await regenerateSession(req);
     req.session.userId = result.lastInsertRowid;
     await recordSecurityEvent(req, 'guest_login', result.lastInsertRowid);
-    req.flash('warning', 'You are using a guest account. It can be lost if your browser session is cleared.');
     return res.redirect(redirect);
   } catch (error) {
     next(error);
