@@ -173,7 +173,8 @@ async function initialize() {
       failed_login_attempts INTEGER DEFAULT 0,
       locked_until TIMESTAMPTZ NULL,
       trust_score INTEGER DEFAULT 0,
-      trust_level TEXT DEFAULT 'new' CHECK(trust_level IN ('new', 'basic', 'trusted', 'core'))
+      trust_level TEXT DEFAULT 'new' CHECK(trust_level IN ('new', 'basic', 'trusted', 'core')),
+      guest_account BOOLEAN DEFAULT false
     );
 
     CREATE TABLE IF NOT EXISTS categories (
@@ -460,6 +461,10 @@ async function initialize() {
   await db.exec(`
     ALTER TABLE users
     ADD COLUMN IF NOT EXISTS trust_level TEXT DEFAULT 'new'
+  `);
+  await db.exec(`
+    ALTER TABLE users
+    ADD COLUMN IF NOT EXISTS guest_account BOOLEAN DEFAULT false
   `);
   await db.exec(`
     ALTER TABLE reports

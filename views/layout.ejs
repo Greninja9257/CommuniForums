@@ -10,6 +10,12 @@
 <body>
   <%- include('partials/header') %>
   <main class="container">
+    <% if (currentUser && currentUser.guest_account) { %>
+      <div class="alert alert-warning">
+        Guest account: your data is temporary and may be lost if your session/cache clears.
+        <a href="/auth/register">Register to save everything permanently.</a>
+      </div>
+    <% } %>
     <% if (typeof flash !== 'undefined' && flash.message) { %>
       <div class="alert alert-<%= flash.type || 'info' %>">
         <%= flash.message %>

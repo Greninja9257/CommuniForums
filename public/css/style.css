@@ -173,6 +173,8 @@ input, textarea, select, button { font-family: inherit; font-size: inherit; }
 .btn:hover { background: var(--gray-200); color: var(--text); }
 .btn-primary { background: var(--primary); color: white; border-color: var(--primary); }
 .btn-primary:hover { background: var(--primary-dark); color: white; }
+.btn-secondary { background: var(--gray-200); color: var(--text); border-color: var(--border); }
+.btn-secondary:hover { background: var(--gray-300); color: var(--text); }
 .btn-danger { background: var(--danger); color: white; border-color: var(--danger); }
 .btn-danger:hover { background: #dc2626; color: white; }
 .btn-sm { padding: 5px 12px; font-size: 0.8rem; }
@@ -350,6 +352,13 @@ input, textarea, select, button { font-family: inherit; font-size: inherit; }
 .auth-card h1 { margin-bottom: 8px; }
 .auth-subtitle { color: var(--text-secondary); margin-bottom: 28px; }
 .auth-form { text-align: left; }
+.auth-divider {
+  margin: 16px 0;
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
 .auth-footer { margin-top: 20px; font-size: 0.9rem; color: var(--text-secondary); }
 
 /* --- Forum Categories Page --- */

@@ -18,6 +18,17 @@
       </div>
       <button type="submit" class="btn btn-primary btn-block">Log In</button>
     </form>
+    <div class="auth-divider" aria-hidden="true">or</div>
+    <form method="POST" action="/auth/guest" class="auth-form">
+      <input type="hidden" name="redirect" value="${redirect || '/'}">
+      <div class="form-group">
+        <label for="guest_name">Continue as Guest</label>
+        <input type="text" id="guest_name" name="guest_name" required maxlength="20"
+          placeholder="Choose a temporary name">
+        <div class="form-help">Guest accounts are temporary and can be lost if your browser/session is cleared.</div>
+      </div>
+      <button type="submit" class="btn btn-secondary btn-block">Continue as Guest</button>
+    </form>
     <p class="auth-footer">Don't have an account? <a href="/auth/register">Register here</a></p>
   </div>
 </div>

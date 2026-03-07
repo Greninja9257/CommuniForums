@@ -1,15 +1,20 @@
 <%- include('../layout', { body: `
 <div class="auth-container">
   <div class="auth-card">
-    <h1>Join CommuniForums</h1>
-    <p class="auth-subtitle">Create your account and become part of our community</p>
+    <h1>${currentUser && currentUser.guest_account ? 'Save Your Guest Account' : 'Join CommuniForums'}</h1>
+    <p class="auth-subtitle">${currentUser && currentUser.guest_account
+      ? 'Convert your temporary guest account into a permanent account'
+      : 'Create your account and become part of our community'}</p>
 
     ${error ? `<div class="alert alert-error">${error}</div>` : ''}
+    ${currentUser && currentUser.guest_account ? `
+      <div class="alert alert-warning">You are currently using a guest account. Register now to keep your threads, posts, and profile permanently.</div>
+    ` : ''}
 
     <form method="POST" action="/auth/register" class="auth-form">
       <div class="form-group">
         <label for="username">Username</label>
-        <input type="text" id="username" name="username" required autofocus
+        <input type="text" id="username" name="username" required autofocus value="${currentUser && currentUser.guest_account ? (currentUser.username || '') : ''}"
           placeholder="3-20 characters, letters/numbers/underscores" pattern="[a-zA-Z0-9_]{3,20}">
       </div>
       <div class="form-group">
@@ -25,9 +30,11 @@
         <label for="confirm_password">Confirm Password</label>
         <input type="password" id="confirm_password" name="confirm_password" required placeholder="Re-enter your password">
       </div>
-      <button type="submit" class="btn btn-primary btn-block">Create Account</button>
+      <button type="submit" class="btn btn-primary btn-block">${currentUser && currentUser.guest_account ? 'Save Account' : 'Create Account'}</button>
     </form>
-    <p class="auth-footer">Already have an account? <a href="/auth/login">Log in here</a></p>
+    <p class="auth-footer">${currentUser && currentUser.guest_account
+      ? 'Already have a full account? <a href="/auth/logout">Log out first, then log in</a>.'
+      : 'Already have an account? <a href="/auth/login">Log in here</a>'}</p>
   </div>
 </div>
 ` }) %>

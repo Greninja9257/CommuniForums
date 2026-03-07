@@ -1,5 +1,6 @@
 const express = require('express');
 const bcrypt = require('bcryptjs');
+const crypto = require('crypto');
 const router = express.Router();
 const { db } = require('../database');
 const { scanFields, warningMessage } = require('../utils/profanity');
@@ -44,13 +45,40 @@ async function completeLogin(req, user, redirectPath) {
   return redirectPath;
 }
 
+function normalizeGuestUsername(input) {
+  const cleaned = String(input || '')
+    .trim()
+    .replace(/[^a-zA-Z0-9_]/g, '_')
+    .replace(/_+/g, '_');
+  return cleaned.slice(0, 20);
+}
+
+async function getUniqueGuestUsername(baseName) {
+  const base = normalizeGuestUsername(baseName);
+  const fallback = `Guest_${Math.floor(1000 + Math.random() * 9000)}`;
+  const seed = base && base.length >= 3 ? base : fallback;
+  let candidate = seed;
+  let attempts = 0;
+
+  while (attempts < 20) {
+    const existing = await db.prepare('SELECT id FROM users WHERE username = ?').get(candidate);
+    if (!existing) return candidate;
+    attempts += 1;
+    const suffix = String(Math.floor(100 + Math.random() * 900));
+    candidate = `${seed.slice(0, Math.max(0, 20 - suffix.length - 1))}_${suffix}`;
+  }
+
+  return `Guest_${Date.now().toString().slice(-6)}`;
+}
+
 router.get('/register', (req, res) => {
-  if (res.locals.currentUser) return res.redirect('/');
+  if (res.locals.currentUser && !res.locals.currentUser.guest_account) return res.redirect('/');
   res.render('auth/register', { title: 'Register', error: null });
 });
 
 router.post('/register', async (req, res, next) => {
   try {
+    const guestUser = res.locals.currentUser && res.locals.currentUser.guest_account ? res.locals.currentUser : null;
     const { username, email, password, confirm_password } = req.body;
 
     if (!username || !email || !password) {
@@ -74,30 +102,45 @@ router.post('/register', async (req, res, next) => {
       return res.render('auth/register', { title: 'Register', error: 'Passwords do not match.' });
     }
 
-    const existingUser = await db.prepare('SELECT id FROM users WHERE username = ? OR email = ?').get(username, email.toLowerCase());
+    const existingUser = await db.prepare('SELECT id FROM users WHERE (username = ? OR email = ?) AND id <> COALESCE(?, -1)')
+      .get(username, email.toLowerCase(), guestUser ? guestUser.id : null);
     if (existingUser) {
       return res.render('auth/register', { title: 'Register', error: 'Username or email already taken.' });
     }
 
     const passwordHash = await bcrypt.hash(password, 12);
-    const result = await db.prepare(
-      'INSERT INTO users (username, email, password_hash) VALUES (?, ?, ?)'
-    ).run(username, email.toLowerCase(), passwordHash);
-    await refreshTrustForUser(result.lastInsertRowid);
+    let userId;
+    if (guestUser) {
+      await db.prepare(
+        'UPDATE users SET username = ?, email = ?, password_hash = ?, guest_account = false WHERE id = ?'
+      ).run(username, email.toLowerCase(), passwordHash, guestUser.id);
+      userId = guestUser.id;
+      await recordSecurityEvent(req, 'guest_upgraded', userId);
+    } else {
+      const result = await db.prepare(
+        'INSERT INTO users (username, email, password_hash) VALUES (?, ?, ?)'
+      ).run(username, email.toLowerCase(), passwordHash);
+      userId = result.lastInsertRowid;
+    }
+    await refreshTrustForUser(userId);
 
-    const userCount = (await db.prepare('SELECT COUNT(*)::int as c FROM users').get()).c;
-    if (userCount <= 10) {
+    const userCount = (await db.prepare('SELECT COUNT(*)::int as c FROM users WHERE guest_account = false').get()).c;
+    if (!guestUser && userCount <= 10) {
       const badge = await db.prepare('SELECT id FROM badges WHERE name = ?').get('Welcome Wagon');
       if (badge) {
         await db.prepare('INSERT INTO user_badges (user_id, badge_id) VALUES (?, ?) ON CONFLICT (user_id, badge_id) DO NOTHING')
-          .run(result.lastInsertRowid, badge.id);
+          .run(userId, badge.id);
       }
     }
 
-    await regenerateSession(req);
-    req.session.userId = result.lastInsertRowid;
-    await recordSecurityEvent(req, 'register_success', result.lastInsertRowid);
-    req.flash('success', 'Welcome to CommuniForums! Your account has been created.');
+    if (!guestUser) {
+      await regenerateSession(req);
+      req.session.userId = userId;
+      await recordSecurityEvent(req, 'register_success', userId);
+      req.flash('success', 'Welcome to CommuniForums! Your account has been created.');
+    } else {
+      req.flash('success', 'Guest account upgraded. Your posts and threads were kept.');
+    }
     res.redirect('/');
   } catch (error) {
     next(error);
@@ -170,6 +213,47 @@ router.post('/login', async (req, res, next) => {
     const destination = await completeLogin(req, user, res.locals.safeRedirect(redirect || '/'));
     await recordSecurityEvent(req, 'login_success', user.id);
     return res.redirect(destination);
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post('/guest', async (req, res, next) => {
+  try {
+    if (res.locals.currentUser) return res.redirect('/');
+    const redirect = res.locals.safeRedirect(req.body.redirect || '/');
+
+    const guestNameInput = req.body.guest_name || req.body.username || '';
+    const guestNameScan = scanFields({ username: guestNameInput });
+    if (guestNameScan.flagged) {
+      return res.render('auth/login', {
+        title: 'Login',
+        error: warningMessage(guestNameScan),
+        redirect
+      });
+    }
+
+    const username = await getUniqueGuestUsername(guestNameInput);
+    if (username.length < 3) {
+      return res.render('auth/login', {
+        title: 'Login',
+        error: 'Guest name must be at least 3 characters.',
+        redirect
+      });
+    }
+
+    const nonce = crypto.randomBytes(6).toString('hex');
+    const email = `guest_${Date.now()}_${nonce}@guest.local`;
+    const passwordHash = await bcrypt.hash(crypto.randomBytes(16).toString('hex'), 8);
+    const result = await db.prepare(
+      'INSERT INTO users (username, email, password_hash, guest_account) VALUES (?, ?, ?, true)'
+    ).run(username, email, passwordHash);
+
+    await regenerateSession(req);
+    req.session.userId = result.lastInsertRowid;
+    await recordSecurityEvent(req, 'guest_login', result.lastInsertRowid);
+    req.flash('warning', 'You are using a guest account. It can be lost if your browser session is cleared.');
+    return res.redirect(redirect);
   } catch (error) {
     next(error);
   }
