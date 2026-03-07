@@ -1136,6 +1136,11 @@ textarea.rich-editor-markdown-hidden { display: none !important; }
 .modal-header h3 { margin: 0; }
 .modal-close { background: none; border: none; font-size: 1.5rem; cursor: pointer; color: var(--gray-400); }
 .modal-note { font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 16px; }
+.guest-invite-modal-content h3 {
+  font-size: 1.05rem;
+  line-height: 1.35;
+  max-width: 92%;
+}
 
 /* --- Empty States --- */
 .empty-state { color: var(--text-secondary); font-size: 0.9rem; padding: 12px 0; }

@@ -24,6 +24,87 @@
     <% } %>
     <%- body %>
   </main>
+  <% if (!currentUser) { %>
+    <div class="modal" id="guest-invite-modal" aria-hidden="true">
+      <div class="modal-content guest-invite-modal-content">
+        <div class="modal-header">
+          <h3>Trying this out for the first time? Use a guest account!</h3>
+          <button class="modal-close" id="guest-invite-close" aria-label="Close">&times;</button>
+        </div>
+        <form method="POST" action="/auth/guest" class="auth-form" id="guest-invite-form">
+          <input type="hidden" name="redirect" id="guest-invite-redirect" value="/">
+          <div class="form-group">
+            <label for="guest-invite-name">Choose a temporary name</label>
+            <input type="text" id="guest-invite-name" name="guest_name" required maxlength="20"
+              placeholder="Temporary name">
+          </div>
+          <button type="submit" class="btn btn-primary btn-block">Continue as Guest</button>
+        </form>
+      </div>
+    </div>
+    <script>
+      document.addEventListener('DOMContentLoaded', function () {
+        const modal = document.getElementById('guest-invite-modal');
+        if (!modal) return;
+
+        const storageKey = 'cf_guest_invite_seen_v1';
+        let seen = false;
+        try {
+          seen = localStorage.getItem(storageKey) === '1';
+        } catch (e) {
+          seen = false;
+        }
+        if (seen) return;
+
+        const setSeen = function () {
+          try {
+            localStorage.setItem(storageKey, '1');
+          } catch (e) {
+            // ignore storage failures
+          }
+        };
+
+        const redirectInput = document.getElementById('guest-invite-redirect');
+        if (redirectInput) {
+          redirectInput.value = window.location.pathname + window.location.search + window.location.hash;
+        }
+
+        const timer = setTimeout(function () {
+          modal.classList.add('show');
+          const nameInput = document.getElementById('guest-invite-name');
+          if (nameInput) nameInput.focus();
+        }, 10000);
+
+        const closeBtn = document.getElementById('guest-invite-close');
+        if (closeBtn) {
+          closeBtn.addEventListener('click', function () {
+            setSeen();
+            modal.classList.remove('show');
+            clearTimeout(timer);
+          });
+        }
+
+        const form = document.getElementById('guest-invite-form');
+        if (form) {
+          form.addEventListener('submit', function () {
+            setSeen();
+          });
+        }
+
+        modal.addEventListener('click', function (e) {
+          if (e.target === modal) {
+            setSeen();
+          }
+        });
+
+        document.addEventListener('keydown', function (e) {
+          if (e.key === 'Escape' && modal.classList.contains('show')) {
+            setSeen();
+          }
+        });
+      });
+    </script>
+  <% } %>
   <%- include('partials/footer') %>
   <script src="/js/app.js"></script>
 </body>
