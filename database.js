@@ -242,6 +242,17 @@ async function initialize() {
       UNIQUE(user_id, thread_id)
     );
 
+    CREATE TABLE IF NOT EXISTS thread_views (
+      id SERIAL PRIMARY KEY,
+      thread_id INTEGER NOT NULL REFERENCES threads(id) ON DELETE CASCADE,
+      viewer_key TEXT NOT NULL,
+      user_id INTEGER NULL REFERENCES users(id) ON DELETE CASCADE,
+      session_id TEXT NULL,
+      first_viewed_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+      last_viewed_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(thread_id, viewer_key)
+    );
+
     CREATE TABLE IF NOT EXISTS thumbs_down (
       id SERIAL PRIMARY KEY,
       post_id INTEGER NOT NULL REFERENCES posts(id) ON DELETE CASCADE,
@@ -368,6 +379,8 @@ async function initialize() {
     CREATE INDEX IF NOT EXISTS idx_saved_posts_post ON saved_posts(post_id);
     CREATE INDEX IF NOT EXISTS idx_thread_sub_user ON thread_subscriptions(user_id);
     CREATE INDEX IF NOT EXISTS idx_thread_sub_thread ON thread_subscriptions(thread_id);
+    CREATE INDEX IF NOT EXISTS idx_thread_views_thread ON thread_views(thread_id);
+    CREATE INDEX IF NOT EXISTS idx_thread_views_user ON thread_views(user_id);
     CREATE INDEX IF NOT EXISTS idx_thumbs_down_receiver ON thumbs_down(receiver_id);
     CREATE INDEX IF NOT EXISTS idx_thumbs_down_recent ON thumbs_down(receiver_id, created_at);
     CREATE INDEX IF NOT EXISTS idx_notifications_user ON notifications(user_id, is_read);

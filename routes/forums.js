@@ -1,4 +1,5 @@
 const express = require('express');
+const crypto = require('crypto');
 const router = express.Router();
 const { db, transaction, getRank, getEffectiveRank } = require('../database');
 const { requireAuth } = require('../middleware/auth');
@@ -13,6 +14,7 @@ const { refreshTrustForUser } = require('../utils/trust');
 const window = new JSDOM('').window;
 const DOMPurify = createDOMPurify(window);
 let engagementTablesReady = false;
+let threadViewTableReady = false;
 
 marked.setOptions({ breaks: true, gfm: true });
 
@@ -153,6 +155,25 @@ async function withEngagementTables(queryFn) {
     }
     throw error;
   }
+}
+
+async function ensureThreadViewTable() {
+  if (threadViewTableReady) return;
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS thread_views (
+      id SERIAL PRIMARY KEY,
+      thread_id INTEGER NOT NULL REFERENCES threads(id) ON DELETE CASCADE,
+      viewer_key TEXT NOT NULL,
+      user_id INTEGER NULL REFERENCES users(id) ON DELETE CASCADE,
+      session_id TEXT NULL,
+      first_viewed_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+      last_viewed_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(thread_id, viewer_key)
+    );
+    CREATE INDEX IF NOT EXISTS idx_thread_views_thread ON thread_views(thread_id);
+    CREATE INDEX IF NOT EXISTS idx_thread_views_user ON thread_views(user_id);
+  `);
+  threadViewTableReady = true;
 }
 
 router.get('/', async (req, res, next) => {
@@ -313,6 +334,7 @@ router.get('/category/:id', async (req, res, next) => {
 router.get('/thread/:id', async (req, res, next) => {
   try {
     await ensureEngagementTables();
+    await ensureThreadViewTable();
     const page = Math.max(1, parseInt(req.query.page, 10) || 1);
     const perPage = 15;
     const offset = (page - 1) * perPage;
@@ -327,7 +349,37 @@ router.get('/thread/:id', async (req, res, next) => {
 
     if (!thread) return res.status(404).render('error', { title: 'Not Found', message: 'Thread not found.' });
 
-    await db.prepare('UPDATE threads SET view_count = view_count + 1 WHERE id = ?').run(thread.id);
+    let viewerKey;
+    let viewerUserId = null;
+    let viewerSessionId = null;
+
+    if (res.locals.currentUser) {
+      viewerUserId = res.locals.currentUser.id;
+      viewerKey = `u:${viewerUserId}`;
+    } else {
+      if (!req.session.viewerToken) {
+        req.session.viewerToken = crypto.randomBytes(16).toString('hex');
+      }
+      viewerSessionId = req.session.viewerToken;
+      viewerKey = `s:${viewerSessionId}`;
+    }
+
+    const firstView = await db.prepare(`
+      WITH inserted AS (
+        INSERT INTO thread_views (thread_id, viewer_key, user_id, session_id)
+        VALUES (?, ?, ?, ?)
+        ON CONFLICT (thread_id, viewer_key) DO NOTHING
+        RETURNING id
+      )
+      SELECT EXISTS(SELECT 1 FROM inserted) as inserted
+    `).get(thread.id, viewerKey, viewerUserId, viewerSessionId);
+
+    if (firstView && firstView.inserted) {
+      await db.prepare('UPDATE threads SET view_count = view_count + 1 WHERE id = ?').run(thread.id);
+    } else {
+      await db.prepare('UPDATE thread_views SET last_viewed_at = CURRENT_TIMESTAMP WHERE thread_id = ? AND viewer_key = ?')
+        .run(thread.id, viewerKey);
+    }
 
     const totalPosts = (await db.prepare('SELECT COUNT(*)::int as c FROM posts WHERE thread_id = ?').get(thread.id)).c;
     const firstPost = await db.prepare('SELECT id FROM posts WHERE thread_id = ? ORDER BY created_at ASC LIMIT 1').get(thread.id);
