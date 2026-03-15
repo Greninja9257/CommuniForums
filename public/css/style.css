@@ -802,10 +802,10 @@ textarea.rich-editor-markdown-hidden { display: none !important; }
 .profile-rank { font-weight: 700; font-size: 0.85rem; }
 .profile-bio { color: var(--text-secondary); margin: 8px 0; font-size: 0.9rem; }
 .profile-meta { font-size: 0.8rem; color: var(--gray-400); }
-.profile-header-stats { display: flex; gap: 24px; align-items: flex-end; padding-bottom: 8px; flex-shrink: 0; }
-.profile-header-stat { text-align: center; min-width: 112px; }
-.profile-header-stat .stat-number { font-size: 2.4rem; font-weight: 700; color: var(--primary); display: block; line-height: 1.2; }
-.profile-header-stat .stat-label { font-size: 1.4rem; color: var(--text-secondary); white-space: nowrap; }
+.profile-header-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 20px; flex-shrink: 0; align-self: center; border-left: 1px solid var(--border); padding: 8px 0 8px 24px; }
+.profile-header-stat { text-align: center; }
+.profile-header-stat .stat-number { font-size: 2.4rem; font-weight: 700; color: var(--primary); display: block; line-height: 1.1; }
+.profile-header-stat .stat-label { font-size: 0.72rem; color: var(--text-secondary); white-space: nowrap; text-transform: uppercase; letter-spacing: 0.03em; }
 
 /* --- Autocomplete --- */
 .autocomplete-wrap { position: relative; }
@@ -1229,7 +1229,7 @@ textarea.rich-editor-markdown-hidden { display: none !important; }
   .profile-info { flex-direction: column; align-items: center; text-align: center; }
   .profile-avatar { margin-top: -48px; }
   .profile-stats-bar { grid-template-columns: 1fr 1fr; }
-  .profile-header-stats { justify-content: center; gap: 16px; padding-bottom: 4px; }
+  .profile-header-stats { border-left: none; border-top: 1px solid var(--border); padding: 12px 0 0; grid-template-columns: repeat(4, 1fr); gap: 6px; justify-items: center; }
   .search-filters { flex-direction: column; }
   .form-row { grid-template-columns: 1fr; }
   .admin-stats-grid { grid-template-columns: repeat(2, 1fr); }
