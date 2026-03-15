@@ -1,105 +1,137 @@
 <%- include('../layout', { body: `
-<div class="profile-header">
-  <div class="profile-banner"></div>
-  <div class="profile-info">
-    <img src="${profileUser.avatar}" alt="" class="profile-avatar" onerror="this.src='/css/default-avatar.svg'">
-    <div class="profile-details">
-      <h1>
-        ${profileUser.username}
+<div class="pf-hero">
+  <div class="pf-banner"></div>
+  <div class="pf-card">
+    <div class="pf-identity">
+      <img src="${profileUser.avatar}" alt="" class="pf-avatar" onerror="this.src='/css/default-avatar.svg'">
+      <div class="pf-name-row">
+        <h1 class="pf-username">${profileUser.username}</h1>
         ${profileUser.role !== 'user' ? `<span class="role-badge role-${profileUser.role}">${profileUser.role}</span>` : ''}
-      </h1>
-      <span class="profile-rank" style="color: ${rank.color}">${rank.title}</span>
-      ${profileUser.bio ? `<p class="profile-bio">${profileUser.bio}</p>` : ''}
-      <div class="profile-meta">
+      </div>
+      <span class="pf-rank-pill" style="color: ${rank.color}">${rank.title}</span>
+      ${profileUser.bio ? `<p class="pf-bio">${profileUser.bio}</p>` : ''}
+      <div class="pf-meta">
         <span>Joined ${formatDate(profileUser.created_at)}</span>
-        <span>&middot; Last active ${formatDate(profileUser.last_active)}</span>
+        <span class="pf-dot">&middot;</span>
+        <span>Active ${formatDate(profileUser.last_active)}</span>
       </div>
     </div>
-    <div class="profile-header-stats">
-      <div class="profile-header-stat">
-        <span class="stat-number">${profileUser.thanks_received}</span>
-        <span class="stat-label">Thanks Received</span>
+    <div class="pf-stats-strip">
+      <div class="pf-stat">
+        <span class="pf-stat-num">${profileUser.thanks_received}</span>
+        <span class="pf-stat-label">Thanks Received</span>
       </div>
-      <div class="profile-header-stat">
-        <span class="stat-number">${profileUser.thanks_given}</span>
-        <span class="stat-label">Thanks Given</span>
+      <div class="pf-stat">
+        <span class="pf-stat-num">${profileUser.thanks_given}</span>
+        <span class="pf-stat-label">Thanks Given</span>
       </div>
-      <div class="profile-header-stat">
-        <span class="stat-number">${profileUser.post_count}</span>
-        <span class="stat-label">Posts</span>
+      <div class="pf-stat">
+        <span class="pf-stat-num">${profileUser.post_count}</span>
+        <span class="pf-stat-label">Posts</span>
       </div>
-      <div class="profile-header-stat">
-        <span class="stat-number">${profileUser.thread_count}</span>
-        <span class="stat-label">Threads</span>
+      <div class="pf-stat">
+        <span class="pf-stat-num">${profileUser.thread_count}</span>
+        <span class="pf-stat-label">Threads</span>
       </div>
     </div>
   </div>
 </div>
 
-<div class="profile-grid">
-  <div class="profile-main">
+<div class="pf-body">
+  <div class="pf-main">
 
     <div class="section-card">
-      <h2>Recent Posts</h2>
+      <h2 class="pf-section-title">Recent Posts</h2>
       ${recentPosts.length === 0 ? '<p class="empty-state">No posts yet.</p>' : `
-        <div class="activity-list">
+        <div class="pf-feed">
           ${recentPosts.map(p => `
-            <div class="activity-item">
-              <a href="/forums/thread/${p.thread_id}#post-${p.id}" class="activity-link">
-                <strong>${p.thread_title}</strong>
-                <p>${truncate(p.content, 150)}</p>
-                <span class="activity-time">${formatDate(p.created_at)}</span>
-              </a>
-            </div>
+            <a href="/forums/thread/${p.thread_id}#post-${p.id}" class="pf-feed-item">
+              <div class="pf-feed-thread">${p.thread_title}</div>
+              <div class="pf-feed-preview">${truncate(p.content, 160)}</div>
+              <div class="pf-feed-time">${formatDate(p.created_at)}</div>
+            </a>
           `).join('')}
         </div>
       `}
     </div>
 
     <div class="section-card">
-      <h2>Recent Threads</h2>
+      <h2 class="pf-section-title">Recent Threads</h2>
       ${recentThreads.length === 0 ? '<p class="empty-state">No threads yet.</p>' : `
-        <div class="activity-list">
+        <div class="pf-feed">
           ${recentThreads.map(t => `
-            <div class="activity-item">
-              <a href="/forums/thread/${t.id}" class="activity-link">
-                <strong>${t.title}</strong>
-                <span class="activity-meta">in ${t.category_name} &middot; ${formatDate(t.created_at)}</span>
-              </a>
+            <a href="/forums/thread/${t.id}" class="pf-feed-item">
+              <div class="pf-feed-thread">${t.title}</div>
+              <div class="pf-feed-meta">in ${t.category_name} &middot; ${formatDate(t.created_at)}</div>
+            </a>
+          `).join('')}
+        </div>
+      `}
+    </div>
+
+  </div>
+  <div class="pf-sidebar">
+
+    <div class="section-card">
+      <h3 class="pf-sidebar-title">Rank Progress</h3>
+      <div class="pf-rank-now" style="color: ${rank.color}">${rank.title}</div>
+      <div class="pf-rank-bar-wrap">
+        <div class="pf-rank-bar-fill" style="width: ${rankProgress.progressPercent}%; background: ${rank.color}"></div>
+      </div>
+      <div class="pf-rank-detail">
+        ${rankProgress.currentThanks} / ${rankProgress.requiredThanks} thanks
+        ${rankProgress.nextRankTitle ? `<span class="pf-rank-next">→ ${rankProgress.nextRankTitle}</span>` : '<span class="pf-rank-max">Max rank reached</span>'}
+      </div>
+    </div>
+
+    <div class="section-card">
+      <h3 class="pf-sidebar-title">Badges <span class="pf-count">${badges.length}</span></h3>
+      ${badges.length === 0 ? '<p class="empty-state">No badges yet.</p>' : `
+        <div class="pf-badge-grid">
+          ${badges.map(b => `
+            <div class="pf-badge-item" title="${b.description}">
+              <span class="pf-badge-icon">${b.icon}</span>
+              <span class="pf-badge-name">${b.name}</span>
             </div>
           `).join('')}
         </div>
       `}
     </div>
-  </div>
 
-  <div class="profile-sidebar">
     <div class="section-card">
-      <h3>Badges (${badges.length})</h3>
-      ${badges.length === 0 ? '<p class="empty-state">No badges yet.</p>' : `
-        <div class="badge-grid">
-          ${badges.map(b => `
-            <div class="badge-item" title="${b.description}">
-              <span class="badge-icon">${b.icon}</span>
-              <span class="badge-name">${b.name}</span>
-            </div>
-          `).join('')}
+      <h3 class="pf-sidebar-title">Stats</h3>
+      <div class="pf-info-grid">
+        <div class="pf-info-item">
+          <span class="pf-info-val">${trustLevel.toUpperCase()}</span>
+          <span class="pf-info-key">Trust Level</span>
         </div>
-      `}
+        <div class="pf-info-item">
+          <span class="pf-info-val">${trustScore}</span>
+          <span class="pf-info-key">Trust Score</span>
+        </div>
+        <div class="pf-info-item">
+          <span class="pf-info-val">${postsRecent}</span>
+          <span class="pf-info-key">Posts (30d)</span>
+        </div>
+        <div class="pf-info-item">
+          <span class="pf-info-val">${thanksGivenRecent}</span>
+          <span class="pf-info-key">Thanks (30d)</span>
+        </div>
+      </div>
     </div>
 
     ${profileUser.rank_override_title ? `
       <div class="section-card">
-        <h3>Special Rank</h3>
-        <p><strong>${profileUser.rank_override_title}</strong></p>
-        ${profileUser.rank_override_reason ? `<p class="text-muted">Reason: ${profileUser.rank_override_reason}</p>` : ''}
-        ${rankOverrideBy ? `<p class="text-muted">Granted by <a href="/users/profile/${rankOverrideBy.id}">${rankOverrideBy.username}</a></p>` : ''}
+        <h3 class="pf-sidebar-title">Special Rank</h3>
+        <p class="pf-special-rank">${profileUser.rank_override_title}</p>
+        ${profileUser.rank_override_reason ? `<p class="pf-muted">Reason: ${profileUser.rank_override_reason}</p>` : ''}
+        ${rankOverrideBy ? `<p class="pf-muted">Granted by <a href="/users/profile/${rankOverrideBy.id}">${rankOverrideBy.username}</a></p>` : ''}
       </div>
     ` : ''}
 
     ${canManageRanks ? `
       <div class="section-card">
-        <h3>Rank Management</h3>
+        <h3 class="pf-sidebar-title">Rank Management</h3>
         <form method="POST" action="/users/profile/${profileUser.id}/rank" class="settings-form">
           <div class="form-group">
             <label>Assign Rank</label>
@@ -124,47 +156,6 @@
       </div>
     ` : ''}
 
-    <div class="section-card">
-      <h3>Trust</h3>
-      <div class="mini-stats">
-        <div class="mini-stat">
-          <span class="mini-stat-value">${trustLevel.toUpperCase()}</span>
-          <span>Level</span>
-        </div>
-        <div class="mini-stat">
-          <span class="mini-stat-value">${trustScore}</span>
-          <span>Score</span>
-        </div>
-      </div>
-    </div>
-
-    <div class="section-card">
-      <h3>30-Day Activity</h3>
-      <div class="mini-stats">
-        <div class="mini-stat">
-          <span class="mini-stat-value">${postsRecent}</span>
-          <span>Posts</span>
-        </div>
-        <div class="mini-stat">
-          <span class="mini-stat-value">${thanksGivenRecent}</span>
-          <span>Thanks Given</span>
-        </div>
-      </div>
-    </div>
-
-    <div class="section-card">
-      <h3>Rank Progress</h3>
-      <div class="rank-progress">
-        <div class="rank-current" style="color: ${rank.color}">${rank.title}</div>
-        <div class="rank-bar">
-          <div class="rank-bar-fill" style="width: ${rankProgress.progressPercent}%"></div>
-        </div>
-        <span class="rank-info">
-          ${rankProgress.currentThanks} / ${rankProgress.requiredThanks} thanks
-          ${rankProgress.nextRankTitle ? ` to ${rankProgress.nextRankTitle}` : ' (highest rank reached)'}
-        </span>
-      </div>
-    </div>
   </div>
 </div>
 ` }) %>
