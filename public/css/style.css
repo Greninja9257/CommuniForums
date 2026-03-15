@@ -803,9 +803,9 @@ textarea.rich-editor-markdown-hidden { display: none !important; }
 .profile-bio { color: var(--text-secondary); margin: 8px 0; font-size: 0.9rem; }
 .profile-meta { font-size: 0.8rem; color: var(--gray-400); }
 .profile-header-stats { display: flex; gap: 24px; align-items: flex-end; padding-bottom: 8px; flex-shrink: 0; }
-.profile-header-stat { text-align: center; min-width: 56px; }
-.profile-header-stat .stat-number { font-size: 1.2rem; font-weight: 700; color: var(--primary); display: block; line-height: 1.2; }
-.profile-header-stat .stat-label { font-size: 0.7rem; color: var(--text-secondary); white-space: nowrap; }
+.profile-header-stat { text-align: center; min-width: 112px; }
+.profile-header-stat .stat-number { font-size: 2.4rem; font-weight: 700; color: var(--primary); display: block; line-height: 1.2; }
+.profile-header-stat .stat-label { font-size: 1.4rem; color: var(--text-secondary); white-space: nowrap; }
 
 /* --- Autocomplete --- */
 .autocomplete-wrap { position: relative; }
