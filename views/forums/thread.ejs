@@ -116,6 +116,7 @@
                 <span class="btn-action disabled">Thanks ${post.thanks_count}</span>
               `}
               <button class="btn-action btn-quote"
+                data-post-id="${post.id}"
                 data-author="${Buffer.from(post.author_name || '').toString('base64')}"
                 data-content="${Buffer.from(post.content || '').toString('base64')}"
                 onclick="quotePost(this)" title="Quote">

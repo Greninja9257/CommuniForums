@@ -21,7 +21,8 @@ ${notifications.length === 0 ? `
             n.type === 'mention' ? '📢' :
             n.type === 'badge' ? '🏆' :
             n.type === 'pm' ? '✉️' :
-            n.type === 'moderation' ? '⚠️' : '🔔'}
+            n.type === 'moderation' ? '⚠️' :
+            n.type === 'quote' ? '🗨️' : '🔔'}
         </div>
         <div class="notification-content">
           <p>${n.message}</p>

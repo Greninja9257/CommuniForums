@@ -15,32 +15,29 @@
         <span>&middot; Last active ${formatDate(profileUser.last_active)}</span>
       </div>
     </div>
-    ${currentUser && currentUser.id !== profileUser.id && capabilities.canSendDirectMessage ? `
-      <a href="/messages/new?to=${profileUser.username}" class="btn btn-sm">Message</a>
-    ` : ''}
+    <div class="profile-header-stats">
+      <div class="profile-header-stat">
+        <span class="stat-number">${profileUser.thanks_received}</span>
+        <span class="stat-label">Thanks Received</span>
+      </div>
+      <div class="profile-header-stat">
+        <span class="stat-number">${profileUser.thanks_given}</span>
+        <span class="stat-label">Thanks Given</span>
+      </div>
+      <div class="profile-header-stat">
+        <span class="stat-number">${profileUser.post_count}</span>
+        <span class="stat-label">Posts</span>
+      </div>
+      <div class="profile-header-stat">
+        <span class="stat-number">${profileUser.thread_count}</span>
+        <span class="stat-label">Threads</span>
+      </div>
+    </div>
   </div>
 </div>
 
 <div class="profile-grid">
   <div class="profile-main">
-    <div class="profile-stats-bar">
-      <div class="profile-stat">
-        <span class="stat-number">${profileUser.thanks_received}</span>
-        <span class="stat-label">Thanks Received</span>
-      </div>
-      <div class="profile-stat">
-        <span class="stat-number">${profileUser.thanks_given}</span>
-        <span class="stat-label">Thanks Given</span>
-      </div>
-      <div class="profile-stat">
-        <span class="stat-number">${profileUser.post_count}</span>
-        <span class="stat-label">Posts</span>
-      </div>
-      <div class="profile-stat">
-        <span class="stat-number">${profileUser.thread_count}</span>
-        <span class="stat-label">Threads</span>
-      </div>
-    </div>
 
     <div class="section-card">
       <h2>Recent Posts</h2>

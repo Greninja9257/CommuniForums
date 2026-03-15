@@ -6,10 +6,13 @@
 ${error ? `<div class="alert alert-error">${error}</div>` : ''}
 
 <div class="section-card">
-  <form method="POST" action="/messages/send" class="settings-form">
+  <form method="POST" action="/messages/send" class="settings-form" id="compose-form">
     <div class="form-group">
       <label for="to">To</label>
-      <input type="text" id="to" name="to" value="${to}" required placeholder="Username" autocomplete="off">
+      <div class="autocomplete-wrap">
+        <input type="text" id="to" name="to" value="${to}" required placeholder="Username" autocomplete="off">
+        <div class="autocomplete-dropdown" id="to-dropdown" hidden></div>
+      </div>
     </div>
     <div class="form-group">
       <label for="content">Message</label>
@@ -21,4 +24,81 @@ ${error ? `<div class="alert alert-error">${error}</div>` : ''}
     </div>
   </form>
 </div>
+
+<script>
+(function () {
+  const input = document.getElementById('to');
+  const dropdown = document.getElementById('to-dropdown');
+  let activeIndex = -1;
+  let debounceTimer;
+
+  function closeDropdown() {
+    dropdown.hidden = true;
+    dropdown.innerHTML = '';
+    activeIndex = -1;
+  }
+
+  function setActive(items, index) {
+    items.forEach((el, i) => el.classList.toggle('active', i === index));
+    activeIndex = index;
+  }
+
+  async function fetchSuggestions(q) {
+    try {
+      const res = await fetch('/messages/users/search?q=' + encodeURIComponent(q));
+      if (!res.ok) return [];
+      return await res.json();
+    } catch { return []; }
+  }
+
+  input.addEventListener('input', () => {
+    clearTimeout(debounceTimer);
+    const q = input.value.trim();
+    if (q.length < 1) { closeDropdown(); return; }
+    debounceTimer = setTimeout(async () => {
+      const users = await fetchSuggestions(q);
+      if (!users.length) { closeDropdown(); return; }
+      dropdown.innerHTML = '';
+      activeIndex = -1;
+      users.forEach(u => {
+        const item = document.createElement('div');
+        item.className = 'autocomplete-item';
+        item.innerHTML =
+          '<img src="' + (u.avatar || '/css/default-avatar.svg') + '" onerror="this.src=\\'/css/default-avatar.svg\\'" class="autocomplete-avatar">' +
+          '<span>' + u.username.replace(/</g, '&lt;') + '</span>';
+        item.addEventListener('mousedown', (e) => {
+          e.preventDefault();
+          input.value = u.username;
+          closeDropdown();
+          input.focus();
+        });
+        dropdown.appendChild(item);
+      });
+      dropdown.hidden = false;
+    }, 150);
+  });
+
+  input.addEventListener('keydown', (e) => {
+    const items = Array.from(dropdown.querySelectorAll('.autocomplete-item'));
+    if (!items.length) return;
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setActive(items, Math.min(activeIndex + 1, items.length - 1));
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setActive(items, Math.max(activeIndex - 1, 0));
+    } else if (e.key === 'Enter' && activeIndex >= 0) {
+      e.preventDefault();
+      input.value = items[activeIndex].querySelector('span').textContent;
+      closeDropdown();
+    } else if (e.key === 'Escape') {
+      closeDropdown();
+    }
+  });
+
+  document.addEventListener('click', (e) => {
+    if (!e.target.closest('.autocomplete-wrap')) closeDropdown();
+  });
+})();
+</script>
 ` }) %>

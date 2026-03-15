@@ -18,9 +18,20 @@ let threadViewTableReady = false;
 
 marked.setOptions({ breaks: true, gfm: true });
 
+function processQuoteTags(text) {
+  return text.replace(
+    /\[quote post_id="(\d+)" author="([^"]+)"\]([\s\S]*?)\[\/quote\]/g,
+    (_match, _postId, author, content) => {
+      const safeAuthor = author.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+      const safeContent = content.trim().replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>');
+      return `<div class="post-quote"><div class="post-quote-header"><strong>${safeAuthor}</strong> wrote:</div><div class="post-quote-body">${safeContent}</div></div>\n\n`;
+    }
+  );
+}
+
 function renderMarkdown(text) {
   if (!text) return '';
-  const html = marked.parse(text);
+  const html = marked.parse(processQuoteTags(text));
   return DOMPurify.sanitize(html);
 }
 
@@ -570,6 +581,22 @@ router.post('/thread/:id/reply', requireAuth, blockBanned, async (req, res, next
           'INSERT INTO notifications (user_id, type, reference_id, reference_type, message) VALUES (?, ?, ?, ?, ?)'
         ).run(sub.user_id, 'thread_follow', thread.id, 'thread',
           `${res.locals.currentUser.username} replied in "${thread.title}"`);
+      }
+
+      const quoteRegex = /\[quote post_id="(\d+)" author="[^"]*"\]/g;
+      let quoteMatch;
+      const quotedPostIds = new Set();
+      while ((quoteMatch = quoteRegex.exec(content.trim())) !== null) {
+        quotedPostIds.add(parseInt(quoteMatch[1]));
+      }
+      for (const quotedPostId of quotedPostIds) {
+        const quotedPost = await tx.prepare('SELECT author_id FROM posts WHERE id = ?').get(quotedPostId);
+        if (quotedPost && quotedPost.author_id !== res.locals.currentUser.id) {
+          await tx.prepare(
+            'INSERT INTO notifications (user_id, type, reference_id, reference_type, message) VALUES (?, ?, ?, ?, ?)'
+          ).run(quotedPost.author_id, 'quote', thread.id, 'thread',
+            `${res.locals.currentUser.username} quoted you in "${thread.title}"`);
+        }
       }
 
       await processMentions(content, postResult.lastInsertRowid, res.locals.currentUser.id, tx);

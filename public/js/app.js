@@ -9,7 +9,20 @@ function escapeHtmlText(value) {
 }
 
 function markdownToHtml(markdown) {
-  let html = escapeHtmlText(markdown || '');
+  const raw = markdown || '';
+  // Extract [quote] blocks before HTML-escaping so they render as styled non-editable blocks
+  const quotePlaceholders = [];
+  const withQuotes = raw.replace(
+    /\[quote post_id="(\d+)" author="([^"]+)"\]([\s\S]*?)\[\/quote\]/g,
+    (match, postId, author, content) => {
+      const safeAuthor = escapeHtmlText(author);
+      const safeContent = escapeHtmlText(content.trim()).replace(/\n/g, '<br>');
+      const html = `<div class="post-quote" data-post-id="${postId}" data-author="${safeAuthor}" contenteditable="false"><div class="post-quote-header"><strong>${safeAuthor}</strong> wrote:</div><div class="post-quote-body">${safeContent}</div></div>`;
+      quotePlaceholders.push(html);
+      return `\x00QUOTE${quotePlaceholders.length - 1}\x00`;
+    }
+  );
+  let html = escapeHtmlText(withQuotes);
   html = html.replace(/^### (.*)$/gm, '<h3>$1</h3>');
   html = html.replace(/^## (.*)$/gm, '<h2>$1</h2>');
   html = html.replace(/^# (.*)$/gm, '<h1>$1</h1>');
@@ -21,6 +34,8 @@ function markdownToHtml(markdown) {
   html = html.replace(/^- (.*)$/gm, '<li>$1</li>');
   html = html.replace(/(<li>.*<\/li>)/gs, '<ul>$1</ul>');
   html = html.replace(/\n/g, '<br>');
+  // Restore quote blocks
+  html = html.replace(/\x00QUOTE(\d+)\x00/g, (_, i) => quotePlaceholders[parseInt(i)]);
   return html;
 }
 
@@ -31,6 +46,14 @@ function htmlToMarkdown(container) {
     if (node.nodeType !== Node.ELEMENT_NODE) return '';
 
     const tag = node.tagName.toLowerCase();
+    // Reconstruct [quote] tag from post-quote block
+    if (tag === 'div' && node.classList && node.classList.contains('post-quote')) {
+      const postId = node.dataset.postId || '';
+      const author = node.dataset.author || '';
+      const bodyEl = node.querySelector('.post-quote-body');
+      const content = bodyEl ? bodyEl.textContent.trim() : '';
+      return `[quote post_id="${postId}" author="${author}"]${content}[/quote]\n\n`;
+    }
     const children = Array.from(node.childNodes).map(walk).join('');
     if (tag === 'strong' || tag === 'b') return `**${children}**`;
     if (tag === 'em' || tag === 'i') return `*${children}*`;
@@ -461,21 +484,20 @@ function decodeBase64(value) {
   }
 }
 
-function quotePost(author, content) {
-  if (author && author.dataset) {
-    const el = author;
-    author = decodeBase64(el.dataset.author || '');
-    content = decodeBase64(el.dataset.content || '');
-  }
+function quotePost(el) {
+  const postId = el.dataset.postId || '';
+  const author = decodeBase64(el.dataset.author || '');
+  const content = decodeBase64(el.dataset.content || '');
   const replyBox = document.getElementById('reply-content');
   if (!replyBox) return;
-  const parsed = typeof content === 'string' ? content : JSON.stringify(content);
-  const quote = `> **${author} wrote:**\n> ${parsed.replace(/\n/g, '\n> ')}\n\n`;
+  // Strip any nested [quote] tags from quoted content to prevent nesting
+  const cleanContent = content.replace(/\[quote[^\]]*\][\s\S]*?\[\/quote\]/g, '').trim();
+  const quoteTag = `[quote post_id="${postId}" author="${author}"]${cleanContent}[/quote]\n\n`;
   const editor = window.richEditors?.[replyBox.id];
   if (editor && typeof editor.appendMarkdown === 'function') {
-    editor.appendMarkdown(quote);
+    editor.appendMarkdown(quoteTag);
   } else {
-    replyBox.value += quote;
+    replyBox.value += quoteTag;
     replyBox.focus();
   }
   replyBox.scrollIntoView({ behavior: 'smooth' });

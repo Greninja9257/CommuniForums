@@ -90,6 +90,21 @@ router.post('/send', requireAuth, blockBanned, requireCapability('canSendDirectM
   }
 });
 
+router.get('/users/search', requireAuth, async (req, res, next) => {
+  try {
+    const q = (req.query.q || '').trim();
+    if (q.length < 1) return res.json([]);
+    const users = await db.prepare(
+      `SELECT username, avatar FROM users
+       WHERE username LIKE ? AND (guest_account IS NULL OR guest_account = 0) AND id <> ?
+       ORDER BY username LIMIT 8`
+    ).all(`${q}%`, res.locals.currentUser.id);
+    res.json(users);
+  } catch (error) {
+    next(error);
+  }
+});
+
 router.get('/:id', requireAuth, async (req, res, next) => {
   try {
     const message = await db.prepare(`
