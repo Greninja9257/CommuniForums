@@ -479,6 +479,11 @@ async function initialize() {
     ALTER TABLE users
     ADD COLUMN IF NOT EXISTS guest_account BOOLEAN DEFAULT false
   `);
+  // Restore guest flags after a column-drop migration — guest emails always end in @guest.local
+  await db.exec(`
+    UPDATE users SET guest_account = true
+    WHERE email LIKE '%@guest.local' AND (guest_account IS NULL OR guest_account = false)
+  `);
   await db.exec(`
     ALTER TABLE reports
     ADD COLUMN IF NOT EXISTS report_category TEXT DEFAULT 'general'

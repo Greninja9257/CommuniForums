@@ -84,6 +84,9 @@ router.post('/register', async (req, res, next) => {
     if (!username || !email || !password) {
       return res.render('auth/register', { title: 'Register', error: 'All fields are required.' });
     }
+    if (email.toLowerCase().endsWith('@guest.local')) {
+      return res.render('auth/register', { title: 'Register', error: 'Invalid email address.' });
+    }
     if (username.length < 3 || username.length > 20) {
       return res.render('auth/register', { title: 'Register', error: 'Username must be 3-20 characters.' });
     }
